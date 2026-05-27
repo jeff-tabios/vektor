@@ -16,12 +16,14 @@ from chunker import chunk_text
 from embedder import embed
 from eval_generator import generate_questions
 from healer import heal
+from market_data import fetch_market_data
 
 load_dotenv()
 
 supabase = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
 
 RSS_FEEDS = [
+    # Crypto
     ("CoinDesk",      "https://www.coindesk.com/arc/outboundfeeds/rss/",              "general"),
     ("Cointelegraph", "https://cointelegraph.com/rss",                                "general"),
     ("Decrypt",       "https://decrypt.co/feed",                                      "general"),
@@ -34,6 +36,11 @@ RSS_FEEDS = [
     ("AMBCrypto",     "https://ambcrypto.com/feed/",                                  "general"),
     ("CryptoNews",    "https://cryptonews.com/news/feed/",                            "general"),
     ("UToday",        "https://u.today/rss",                                          "general"),
+    # Stocks / Macro
+    ("Reuters",       "https://feeds.reuters.com/reuters/businessNews",               "general"),
+    ("CNBC",          "https://www.cnbc.com/id/100003114/device/rss/rss.html",        "general"),
+    ("MarketWatch",   "https://feeds.content.dowjones.io/public/rss/mw_marketpulse", "general"),
+    ("Investopedia",  "https://www.investopedia.com/feedbuilder/feed/getfeed/?feedName=rss_headline", "general"),
 ]
 
 ALL_TABLES = ["chunks", "eval_questions", "ingestion_runs", "trades", "trade_evals", "healing_log"]
@@ -88,8 +95,31 @@ def run():
     new_articles = [a for a in articles if a["source_url"] not in seen]
     print(f"New articles: {len(new_articles)}")
 
+    # always refresh market data regardless of new articles
+    print("Fetching market data...")
+    market_chunks = fetch_market_data()
+    if market_chunks:
+        supabase.table("chunks").delete().eq("source", "market_data").execute()
+        market_embeddings = embed([c["text"] for c in market_chunks])
+        for chunk, emb in zip(market_chunks, market_embeddings):
+            chunk["embedding"] = emb
+        supabase.table("chunks").insert(market_chunks).execute()
+        print(f"Refreshed {len(market_chunks)} market data chunks")
+
     if not new_articles:
-        print("Nothing to ingest")
+        print("No new articles — market data updated only")
+        print("Running evals...")
+        recall = run_evals(supabase)
+        duration_ms = round((time.time() - t0) * 1000, 2)
+        supabase.table("ingestion_runs").insert({
+            "chunks_added": len(market_chunks),
+            "chunks_deleted": 0,
+            "eval_questions_generated": 0,
+            "recall_at_5": recall,
+            "duration_ms": duration_ms,
+        }).execute()
+        heal(supabase, recall=recall)
+        print(f"── Done in {duration_ms:.0f}ms ──")
         return
 
     all_chunks = []
