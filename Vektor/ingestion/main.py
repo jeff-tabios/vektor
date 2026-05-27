@@ -94,8 +94,20 @@ def run():
     print(f"Inserted {len(inserted)} chunks")
 
     q_count = 0
-    if inserted:
-        questions = generate_questions(inserted)
+    existing_q_count = supabase.table("eval_questions").select("id", count="exact").execute().count or 0
+    chunks_for_evals = inserted
+
+    # if we have too few eval questions, sample from all chunks to top up
+    if existing_q_count < 50:
+        all_chunks_sample = (
+            supabase.table("chunks").select("id,text,source").limit(100).execute().data or []
+        )
+        seen_ids = {c["id"] for c in inserted}
+        extra = [c for c in all_chunks_sample if c["id"] not in seen_ids]
+        chunks_for_evals = (inserted + extra)[:100]
+
+    if chunks_for_evals:
+        questions = generate_questions(chunks_for_evals, max_chunks=50)
         if questions:
             supabase.table("eval_questions").insert(questions).execute()
             q_count = len(questions)

@@ -1,11 +1,18 @@
+import importlib.util
 import os
-import sys
 import numpy as np
 from supabase import create_client
 from sentence_transformers import SentenceTransformer
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "..", "reranker"))
-from main import rerank
+def _load(path):
+    name = os.path.basename(os.path.dirname(path)) + "_" + os.path.splitext(os.path.basename(path))[0]
+    spec = importlib.util.spec_from_file_location(name, path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+rerank = _load(os.path.join(ROOT, "reranker", "main.py")).rerank
 
 MODEL_NAME = "all-MiniLM-L6-v2"
 K = 5

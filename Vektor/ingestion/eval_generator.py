@@ -22,7 +22,7 @@ def get_client() -> Groq:
     return _client
 
 
-def generate_questions(chunks: list, max_chunks: int = 5) -> list:
+def generate_questions(chunks: list, max_chunks: int = 50) -> list:
     client = get_client()
     questions = []
 
