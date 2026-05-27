@@ -36,15 +36,16 @@ RSS_FEEDS = [
     ("UToday",        "https://u.today/rss",                                          "general"),
 ]
 
-NUCLEAR_TABLES = ["chunks", "eval_questions", "ingestion_runs"]
+ALL_TABLES = ["chunks", "eval_questions", "ingestion_runs", "trades", "trade_evals", "healing_log"]
+DEFAULT_NUKE_TABLES = ["chunks", "eval_questions", "ingestion_runs"]
 
 
-def nuclear_reset():
-    print("── NUCLEAR RESET ──")
-    for table in NUCLEAR_TABLES:
+def nuke(tables: list):
+    print(f"── NUKE: {', '.join(tables)} ──")
+    for table in tables:
         supabase.table(table).delete().neq("id", 0).execute()
         print(f"  Cleared {table}")
-    print("── Reset complete ──\n")
+    print("── Done ──\n")
 
 
 def clean(text: str) -> str:
@@ -153,10 +154,20 @@ def run():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--nuclear", action="store_true", help="Clear chunks, eval_questions, ingestion_runs before running")
+    parser.add_argument(
+        "--nuke",
+        nargs="*",
+        metavar="TABLE",
+        help=f"Clear tables before running. No args = default ({', '.join(DEFAULT_NUKE_TABLES)}). Pass table names to clear specific ones. Use 'all' to clear everything.",
+    )
     args = parser.parse_args()
 
-    if args.nuclear:
-        nuclear_reset()
+    if args.nuke is not None:
+        if args.nuke == ["all"]:
+            nuke(ALL_TABLES)
+        elif args.nuke:
+            nuke(args.nuke)
+        else:
+            nuke(DEFAULT_NUKE_TABLES)
 
     run()
