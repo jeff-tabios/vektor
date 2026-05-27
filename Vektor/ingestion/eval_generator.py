@@ -25,6 +25,7 @@ def get_client() -> Groq:
 def generate_questions(chunks: list, max_chunks: int = 50) -> list:
     client = get_client()
     questions = []
+    failed = 0
 
     for chunk in chunks[:max_chunks]:
         try:
@@ -41,7 +42,12 @@ def generate_questions(chunks: list, max_chunks: int = 50) -> list:
                     "question_type": "rolling",
                     "expected_chunk_id": chunk["id"],
                 })
+            else:
+                failed += 1
+                print(f"eval_generator: bad response (no '?'): {q[:60]!r}")
         except Exception as e:
+            failed += 1
             print(f"eval_generator error: {e}")
 
+    print(f"eval_generator: {len(questions)} generated, {failed} failed out of {min(len(chunks), max_chunks)}")
     return questions
