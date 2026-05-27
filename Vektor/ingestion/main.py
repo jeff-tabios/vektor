@@ -1,3 +1,4 @@
+import argparse
 import os
 import re
 import sys
@@ -21,11 +22,29 @@ load_dotenv()
 supabase = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
 
 RSS_FEEDS = [
-    ("CoinDesk",      "https://www.coindesk.com/arc/outboundfeeds/rss/", "general"),
-    ("Cointelegraph", "https://cointelegraph.com/rss",                    "general"),
-    ("Decrypt",       "https://decrypt.co/feed",                          "general"),
-    ("BitcoinMag",    "https://bitcoinmagazine.com/feed",                 "BTC"),
+    ("CoinDesk",      "https://www.coindesk.com/arc/outboundfeeds/rss/",              "general"),
+    ("Cointelegraph", "https://cointelegraph.com/rss",                                "general"),
+    ("Decrypt",       "https://decrypt.co/feed",                                      "general"),
+    ("BitcoinMag",    "https://bitcoinmagazine.com/feed",                             "BTC"),
+    ("TheBlock",      "https://www.theblock.co/rss.xml",                              "general"),
+    ("CryptoSlate",   "https://cryptoslate.com/feed/",                                "general"),
+    ("NewsBTC",       "https://www.newsbtc.com/feed/",                                "BTC"),
+    ("Bitcoinist",    "https://bitcoinist.com/feed/",                                 "BTC"),
+    ("BeInCrypto",    "https://beincrypto.com/feed/",                                 "general"),
+    ("AMBCrypto",     "https://ambcrypto.com/feed/",                                  "general"),
+    ("CryptoNews",    "https://cryptonews.com/news/feed/",                            "general"),
+    ("UToday",        "https://u.today/rss",                                          "general"),
 ]
+
+NUCLEAR_TABLES = ["chunks", "eval_questions", "ingestion_runs"]
+
+
+def nuclear_reset():
+    print("── NUCLEAR RESET ──")
+    for table in NUCLEAR_TABLES:
+        supabase.table(table).delete().neq("id", 0).execute()
+        print(f"  Cleared {table}")
+    print("── Reset complete ──\n")
 
 
 def clean(text: str) -> str:
@@ -38,7 +57,7 @@ def fetch_articles() -> list:
     for source, url, asset in RSS_FEEDS:
         try:
             feed = feedparser.parse(url)
-            for entry in feed.entries[:10]:
+            for entry in feed.entries[:20]:
                 text = clean(getattr(entry, "summary", "") or getattr(entry, "title", ""))
                 if len(text) > 100:
                     articles.append({
@@ -97,7 +116,6 @@ def run():
     existing_q_count = supabase.table("eval_questions").select("id", count="exact").execute().count or 0
     chunks_for_evals = inserted
 
-    # if we have too few eval questions, sample from all chunks to top up
     if existing_q_count < 50:
         all_chunks_sample = (
             supabase.table("chunks").select("id,text,source").limit(100).execute().data or []
@@ -134,4 +152,11 @@ def run():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--nuclear", action="store_true", help="Clear chunks, eval_questions, ingestion_runs before running")
+    args = parser.parse_args()
+
+    if args.nuclear:
+        nuclear_reset()
+
     run()
