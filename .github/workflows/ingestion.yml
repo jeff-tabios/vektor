@@ -2,8 +2,14 @@ name: Ingestion
 
 on:
   schedule:
-    - cron: '0 */4 * * *'  # every 4 hours
-  workflow_dispatch:        # manual trigger from GitHub UI
+    - cron: '0 */4 * * *'
+  workflow_dispatch:
+
+env:
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+  GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+  FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
 
 jobs:
   ingest:
@@ -18,14 +24,15 @@ jobs:
           cache: pip
           cache-dependency-path: Vektor/ingestion/requirements.txt
 
+      - name: Check secrets
+        run: |
+          [ -n "$SUPABASE_URL" ] && echo "SUPABASE_URL set" || echo "SUPABASE_URL MISSING"
+          [ -n "$SUPABASE_KEY" ] && echo "SUPABASE_KEY set" || echo "SUPABASE_KEY MISSING"
+          [ -n "$GROQ_API_KEY" ] && echo "GROQ_API_KEY set" || echo "GROQ_API_KEY MISSING"
+
       - name: Install dependencies
         run: pip install -r Vektor/ingestion/requirements.txt
 
       - name: Run ingestion
         working-directory: Vektor/ingestion
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
         run: python main.py

@@ -2,8 +2,13 @@ name: Trader
 
 on:
   schedule:
-    - cron: '30 14 * * 1-5'  # 9:30am ET (14:30 UTC) Mon-Fri
+    - cron: '30 14 * * 1-5'
   workflow_dispatch:
+
+env:
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+  GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
 
 jobs:
   trade:
@@ -29,8 +34,4 @@ jobs:
 
       - name: Trade ${{ matrix.asset }}
         working-directory: Vektor/trader
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: python main.py ${{ matrix.asset }}
