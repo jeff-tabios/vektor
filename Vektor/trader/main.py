@@ -10,6 +10,12 @@ from retriever import retrieve
 from executor import execute
 from pricing import get_price
 
+try:
+    from ibkr import execute_trade as ibkr_execute
+    IBKR_AVAILABLE = True
+except ImportError:
+    IBKR_AVAILABLE = False
+
 load_dotenv()
 
 supabase = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
@@ -94,6 +100,25 @@ def run(asset: str = "SPY", paper_trade: bool = True):
     print(f"  Faithfulness: {final['faithfulness']:.2f}")
     print(f"  Reasoning:    {final['reasoning']}")
 
+    ibkr_order_id = None
+    ibkr_executed = False
+
+    if IBKR_AVAILABLE and final["decision"] != "HOLD" and final["signal"] != "conflict":
+        print(f"\n── IBKR ──")
+        ibkr_order_id = ibkr_execute(
+            asset=asset,
+            decision=final["decision"],
+            entry_price=entry_price or 0.0,
+            stop_loss=final["stop_loss"],
+            take_profit=final["take_profit"],
+            paper=paper_trade,
+        )
+        ibkr_executed = ibkr_order_id is not None
+        if ibkr_executed:
+            print(f"  Order placed — id={ibkr_order_id}")
+        else:
+            print(f"  Order skipped (TWS not running or missing stops)")
+
     supabase.table("trades").insert({
         "asset":          asset,
         "decision":       final["decision"],
@@ -104,6 +129,8 @@ def run(asset: str = "SPY", paper_trade: bool = True):
         "price_at_trade": entry_price,
         "stop_loss":      final["stop_loss"],
         "take_profit":    final["take_profit"],
+        "ibkr_order_id":  ibkr_order_id,
+        "ibkr_executed":  ibkr_executed,
     }).execute()
 
     supabase.table("trade_evals").insert({

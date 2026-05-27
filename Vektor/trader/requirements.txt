@@ -3,3 +3,5 @@ groq>=0.4.0
 sentence-transformers>=2.2.0
 numpy>=1.24.0,<2.0.0
 python-dotenv>=1.0.0
+ib_insync>=0.9.86
+yfinance>=0.2.0
