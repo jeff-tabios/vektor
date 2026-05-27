@@ -8,6 +8,7 @@ from supabase import create_client
 sys.path.insert(0, os.path.dirname(__file__))
 from retriever import retrieve
 from executor import execute
+from pricing import get_price
 
 load_dotenv()
 
@@ -63,6 +64,9 @@ def run(asset: str = "SPY", paper_trade: bool = True):
 
     print(f"\n── Trading {asset} ──")
 
+    entry_price = get_price(asset)
+    print(f"Entry price: {entry_price}")
+
     chunks, retrieval_ms = retrieve(query, supabase, asset=asset)
     if not chunks:
         print("No chunks retrieved — skipping trade")
@@ -97,7 +101,7 @@ def run(asset: str = "SPY", paper_trade: bool = True):
         "confidence":     final["confidence"],
         "persona":        "consensus",
         "paper_trade":    paper_trade,
-        "price_at_trade": None,
+        "price_at_trade": entry_price,
         "stop_loss":      final["stop_loss"],
         "take_profit":    final["take_profit"],
     }).execute()
