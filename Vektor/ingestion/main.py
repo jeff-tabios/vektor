@@ -17,6 +17,7 @@ from embedder import embed
 from eval_generator import generate_questions
 from healer import heal
 from market_data import fetch_market_data
+from fred_data import fetch_fred_data
 
 load_dotenv()
 
@@ -95,16 +96,19 @@ def run():
     new_articles = [a for a in articles if a["source_url"] not in seen]
     print(f"New articles: {len(new_articles)}")
 
-    # always refresh market data regardless of new articles
+    # always refresh market data + FRED regardless of new articles
     print("Fetching market data...")
     market_chunks = fetch_market_data()
-    if market_chunks:
-        supabase.table("chunks").delete().eq("source", "market_data").execute()
-        market_embeddings = embed([c["text"] for c in market_chunks])
-        for chunk, emb in zip(market_chunks, market_embeddings):
+    fred_chunks   = fetch_fred_data()
+    fresh_chunks  = market_chunks + fred_chunks
+
+    if fresh_chunks:
+        supabase.table("chunks").delete().in_("source", ["market_data", "FRED"]).execute()
+        fresh_embeddings = embed([c["text"] for c in fresh_chunks])
+        for chunk, emb in zip(fresh_chunks, fresh_embeddings):
             chunk["embedding"] = emb
-        supabase.table("chunks").insert(market_chunks).execute()
-        print(f"Refreshed {len(market_chunks)} market data chunks")
+        supabase.table("chunks").insert(fresh_chunks).execute()
+        print(f"Refreshed {len(market_chunks)} market + {len(fred_chunks)} FRED chunks")
 
     if not new_articles:
         print("No new articles — market data updated only")
