@@ -10,11 +10,13 @@ from retriever import retrieve
 from executor import execute
 from pricing import get_price
 
-try:
-    from ibkr import execute_trade as ibkr_execute
-    IBKR_AVAILABLE = True
-except ImportError:
-    IBKR_AVAILABLE = False
+IBKR_AVAILABLE = False
+if os.environ.get("IBKR_ENABLED", "").lower() == "true":
+    try:
+        from ibkr import execute_trade as ibkr_execute
+        IBKR_AVAILABLE = True
+    except ImportError:
+        pass
 
 load_dotenv()
 
