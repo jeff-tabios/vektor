@@ -1,7 +1,11 @@
 import os
+import sys
 import numpy as np
 from supabase import create_client
 from sentence_transformers import SentenceTransformer
+
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "reranker"))
+from main import rerank
 
 MODEL_NAME = "all-MiniLM-L6-v2"
 K = 5
@@ -11,8 +15,14 @@ def recall_at_k(result_ids, expected_id, k=K):
     return 1.0 if expected_id in result_ids[:k] else 0.0
 
 
+def get_retrieval_k(supabase) -> int:
+    r = supabase.table("system_config").select("value").eq("key", "retrieval_k").execute()
+    return int(r.data[0]["value"]) if r.data else 20
+
+
 def run_evals(supabase, k=K):
     model = SentenceTransformer(MODEL_NAME)
+    retrieval_k = get_retrieval_k(supabase)
 
     questions = (
         supabase.table("eval_questions")
@@ -30,15 +40,16 @@ def run_evals(supabase, k=K):
     for q in questions:
         embedding = model.encode([q["query"]], normalize_embeddings=True)[0].tolist()
         results = (
-            supabase.rpc("match_chunks", {"query_embedding": embedding, "match_count": k})
+            supabase.rpc("match_chunks", {"query_embedding": embedding, "match_count": retrieval_k})
             .execute()
             .data or []
         )
-        result_ids = [r["id"] for r in results]
+        reranked = rerank(q["query"], results, top_k=k)
+        result_ids = [r["id"] for r in reranked]
         scores.append(recall_at_k(result_ids, q["expected_chunk_id"], k))
 
     recall = float(np.mean(scores)) if scores else 0.0
-    print(f"Recall@{k}: {recall:.2%}  ({len(scores)} questions)")
+    print(f"Recall@{k} (after rerank): {recall:.2%}  ({len(scores)} questions)")
     return recall
 
 

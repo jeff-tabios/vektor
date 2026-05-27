@@ -1,3 +1,4 @@
+from typing import Optional
 from supabase import Client
 
 
@@ -20,7 +21,7 @@ def _log(supabase: Client, trigger: str, action: str, before: str, after: str, s
     }).execute()
 
 
-def heal(supabase: Client, recall: float | None = None):
+def heal(supabase: Client, recall=None):  # type: Optional[float]
     config = _get_config(supabase)
     recall_threshold = float(config.get("recall_threshold", 0.70))
     current_k = int(config.get("retrieval_k", 20))

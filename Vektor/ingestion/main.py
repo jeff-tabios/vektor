@@ -1,11 +1,15 @@
 import os
 import re
+import sys
 import time
 
 import feedparser
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from supabase import create_client
+
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "evals"))
+from runner import run_evals
 
 from chunker import chunk_text
 from embedder import embed
@@ -100,17 +104,20 @@ def run():
     supabase.rpc("delete_stale_chunks", {}).execute()
     supabase.rpc("delete_expired_evals", {}).execute()
 
+    print("Running evals...")
+    recall = run_evals(supabase)
+
     duration_ms = round((time.time() - t0) * 1000, 2)
 
     supabase.table("ingestion_runs").insert({
         "chunks_added": len(inserted),
         "chunks_deleted": 0,
         "eval_questions_generated": q_count,
-        "recall_at_5": None,
+        "recall_at_5": recall,
         "duration_ms": duration_ms,
     }).execute()
 
-    heal(supabase, recall=None)
+    heal(supabase, recall=recall)
     print(f"── Done in {duration_ms:.0f}ms ──")
 
 

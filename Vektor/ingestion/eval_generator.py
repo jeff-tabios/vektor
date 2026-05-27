@@ -29,7 +29,7 @@ def generate_questions(chunks: list, max_chunks: int = 5) -> list:
     for chunk in chunks[:max_chunks]:
         try:
             resp = client.chat.completions.create(
-                model="llama3-8b-8192",
+                model="llama-3.1-8b-instant",
                 messages=[{"role": "user", "content": PROMPT.format(text=chunk["text"][:800])}],
                 max_tokens=100,
                 temperature=0.3,
