@@ -22,7 +22,8 @@ TABLE_CSS = """
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:4px}
 .card{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:12px;padding:14px;min-width:0}
 .card-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#666;margin-bottom:6px}
-.card-value{font-size:22px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-value{font-size:20px;font-weight:700;line-height:1.3;word-break:break-word}
+.card-value .small{font-size:13px;font-weight:400;color:#aaa;display:block;margin-top:2px}
 hr{border:none;border-top:1px solid #2a2a2a;margin:12px 0}
 .tw{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:12px;border:1px solid #2a2a2a}
 table{width:100%;border-collapse:collapse;font-size:13px}
@@ -37,7 +38,7 @@ tr:hover td{background:#1a1a1a}
 @media(max-width:580px){
   .grid4{grid-template-columns:repeat(2,1fr)}
   .grid3{grid-template-columns:repeat(2,1fr)}
-  .card-value{font-size:18px}
+  .card-value{font-size:17px}
 }
 </style>
 """
@@ -151,11 +152,11 @@ def build_stats():
     return TABLE_CSS + '<div class="vk"><div class="grid4">' + \
         card("Recall@5",     '<span class="' + ri + '">' + "{:.1%}".format(avg_recall) + '</span>') + \
         card("Faithfulness", '<span class="' + fi + '">' + "{:.1%}".format(avg_faith)  + '</span>') + \
-        card("Knowledge",    "{:,} chunks".format(total_chunks)) + \
+        card("Knowledge",    "{:,}<span class='small'>chunks</span>".format(total_chunks)) + \
         card("Signals",
-             '<span class="buy">' + str(buy) + ' BUY</span>&nbsp;&nbsp;'
-             '<span class="sell">' + str(sell) + ' SELL</span>&nbsp;&nbsp;'
-             '<span class="m">' + str(hold) + ' HOLD</span>') + \
+             '<span class="buy">' + str(buy) + ' BUY</span><br>'
+             '<span class="sell">' + str(sell) + ' SELL</span>'
+             '<span class="m">&nbsp; ' + str(hold) + ' HOLD</span>') + \
         '</div></div>'
 
 
