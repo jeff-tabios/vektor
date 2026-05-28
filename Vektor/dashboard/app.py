@@ -303,7 +303,7 @@ def build_performance(tz=0.0):
         ac = "g" if avg_dollar > 0 else ("r" if avg_dollar < 0 else "")
         return (
             '<div class="section-title">💵 Simulated Dollar Returns</div>'
-            '<div class="grid4" style="margin-bottom:20px">'
+            '<div class="grid4" style="margin-bottom:40px">'
             + card("Capital / Trade", "${:,.0f}".format(trade_size))
             + card("Total Deployed",  "${:,.0f}".format(deployed) if n else "—")
             + card("Net Return",      '<span class="' + nc + '">${:+,.2f}</span>'.format(net_dollar) if n else "—")
