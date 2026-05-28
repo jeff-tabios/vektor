@@ -273,10 +273,13 @@ def make_summary(avg_recall, avg_faith, total_pnl, win_rate, n, open_count, buy,
 
 
 def build_performance(tz=0.0):
-    # fetch system stats for summary
-    runs  = supabase.table("ingestion_runs").select("recall_at_5").execute().data or []
-    evals = supabase.table("trade_evals").select("faithfulness").execute().data or []
-    all_t = supabase.table("trades").select("decision").execute().data or []
+    # fetch system stats + config
+    runs   = supabase.table("ingestion_runs").select("recall_at_5").execute().data or []
+    evals  = supabase.table("trade_evals").select("faithfulness").execute().data or []
+    all_t  = supabase.table("trades").select("decision").execute().data or []
+    config = {r["key"]: r["value"] for r in (supabase.table("system_config").select("key,value").execute().data or [])}
+    trade_size = float(config.get("paper_trade_size", 1000))
+
     avg_recall = sum(r["recall_at_5"] for r in runs if r["recall_at_5"]) / len(runs) if runs else 0
     avg_faith  = sum(e["faithfulness"] for e in evals if e["faithfulness"]) / len(evals) if evals else 0
     buy  = sum(1 for t in all_t if t["decision"] == "BUY")
@@ -290,9 +293,32 @@ def build_performance(tz=0.0):
         '<span class="sell">' + str(sell) + ' SELL</span>'
         '<span style="color:#555"> · ' + str(hold) + ' HOLD</span>')
 
+    def dollar_row(trade_size, closed_pnls):
+        n          = len(closed_pnls)
+        deployed   = trade_size * n
+        net_dollar = sum(p / 100 * trade_size for p in closed_pnls)
+        avg_dollar = net_dollar / n if n else 0
+        nc = "g" if net_dollar > 0 else ("r" if net_dollar < 0 else "")
+        ac = "g" if avg_dollar > 0 else ("r" if avg_dollar < 0 else "")
+        return (
+            '<div class="section-title">💵 Simulated Dollar Returns</div>'
+            '<div class="grid4">'
+            + card("Capital / Trade", "${:,.0f}".format(trade_size))
+            + card("Total Deployed",  "${:,.0f}".format(deployed) if n else "—")
+            + card("Net Return",      '<span class="' + nc + '">${:+,.2f}</span>'.format(net_dollar) if n else "—")
+            + card("Avg / Trade",     '<span class="' + ac + '">${:+,.2f}</span>'.format(avg_dollar) if n else "—")
+            + '</div>'
+        )
+
     if not trades:
         summary   = make_summary(avg_recall, avg_faith, 0, 0, 0, 0, buy, sell, hold)
-        pnl_cards = TABLE_CSS + '<div class="vk"><div class="section-title">📊 Trading Performance</div><div class="grid4">' + sig_card + card("Total P&L","—") + card("Win Rate","—") + card("Open Trades","0") + '</div>' + summary + '</div>'
+        pnl_cards = (
+            TABLE_CSS + '<div class="vk">'
+            '<div class="section-title">📊 Trading Performance</div>'
+            '<div class="grid4">' + sig_card + card("Total P&L","—") + card("Win Rate","—") + card("Open Trades","0") + '</div>'
+            + dollar_row(trade_size, [])
+            + summary + '</div>'
+        )
         return pnl_cards, TABLE_CSS + make_table(["Asset","Signal","Entry","Stop","Target","Now","P&L","Status","When"],[])
 
     prices = get_prices(list({t["asset"] for t in trades if t.get("asset")}))
@@ -326,14 +352,21 @@ def build_performance(tz=0.0):
     win_rate  = winners / len(pnl_vals) if pnl_vals else 0
     pc        = "g" if total_pnl > 0 else ("r" if total_pnl < 0 else "")
 
+    # closed trades use stored pnl field (set by closer.py)
+    closed_pnls = [t["pnl"] for t in trades if t.get("pnl") is not None]
+
     summary   = make_summary(avg_recall, avg_faith, total_pnl, win_rate, len(pnl_vals), open_count, buy, sell, hold)
     pnl_cards = (
-        TABLE_CSS + '<div class="vk"><div class="section-title">📊 Trading Performance</div><div class="grid4">'
+        TABLE_CSS + '<div class="vk">'
+        '<div class="section-title">📊 Trading Performance</div>'
+        '<div class="grid4">'
         + sig_card
         + card("Total P&L",   '<span class="' + pc + '">{:+.2f}%</span>'.format(total_pnl))
         + card("Win Rate",    "{:.0%} ({}/{})".format(win_rate, winners, len(pnl_vals)))
         + card("Open Trades", str(open_count))
-        + '</div>' + summary + '</div>'
+        + '</div>'
+        + dollar_row(trade_size, closed_pnls)
+        + summary + '</div>'
     )
     return pnl_cards, TABLE_CSS + make_table(
         ["Asset","Signal","Entry","Stop","Target","Now","P&L","Status","When"], rows
