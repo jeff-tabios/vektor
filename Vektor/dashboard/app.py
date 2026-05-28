@@ -367,7 +367,7 @@ def refresh(tz_offset=0.0):
 
 
 # ── Layout ──────────────────────────────────────────────
-with gr.Blocks(css=SHELL_CSS, theme=gr.themes.Monochrome()) as demo:
+with gr.Blocks(css=SHELL_CSS, theme=gr.themes.Monochrome(), js="() => { document.documentElement.classList.add('dark'); }") as demo:
 
     tz_box     = gr.Number(value=0, visible=False)
     stats_html = gr.HTML()
