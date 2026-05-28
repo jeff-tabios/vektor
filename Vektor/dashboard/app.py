@@ -35,12 +35,9 @@ tr:hover td{background:#1a1a1a}
 .empty{text-align:center;color:#666;padding:24px!important}
 .g{color:#22c55e}.y{color:#eab308}.r{color:#ef4444}.m{color:#888}
 .buy{color:#22c55e;font-weight:700}.sell{color:#ef4444;font-weight:700}
-.explain{margin:12px 0;padding:14px;background:#111;border:1px solid #2a2a2a;border-radius:12px}
-.explain-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px}
-.explain-item{display:flex;flex-direction:column;gap:3px}
-.explain-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#aaa}
-.explain-text{font-size:12px;color:#666;line-height:1.4}
-.explain-note{font-size:11px;color:#555;text-align:center;margin-top:4px}
+.summary{margin:12px 0;padding:16px;background:#111;border:1px solid #2a2a2a;border-radius:12px}
+.summary-text{font-size:14px;color:#bbb;line-height:1.7}
+.summary-note{font-size:11px;color:#555;margin-top:8px}
 @media(max-width:580px){
   .grid4{grid-template-columns:repeat(2,1fr)}
   .grid3{grid-template-columns:repeat(2,1fr)}
@@ -159,38 +156,6 @@ def build_stats():
     ri = "g" if avg_recall >= 0.9 else ("y" if avg_recall >= 0.7 else "r")
     fi = "g" if avg_faith  >= 0.8 else ("y" if avg_faith  >= 0.6 else "r")
 
-    explain = """
-<div class="explain">
-  <div class="explain-row">
-    <div class="explain-item">
-      <span class="explain-label">Recall@5</span>
-      <span class="explain-text">How often the AI finds the right news when searching. 99%+ means it almost never misses relevant context.</span>
-    </div>
-    <div class="explain-item">
-      <span class="explain-label">Faithfulness</span>
-      <span class="explain-text">How grounded the AI's reasoning is in actual news — not hallucination. Above 80% is good.</span>
-    </div>
-    <div class="explain-item">
-      <span class="explain-label">Knowledge</span>
-      <span class="explain-text">Total news + market data chunks in the database. Refreshed every 4 hours automatically.</span>
-    </div>
-    <div class="explain-item">
-      <span class="explain-label">Signals</span>
-      <span class="explain-text">Trading decisions made by the AI. BUY/SELL are tracked for P&L. HOLD means mixed signals — staying out.</span>
-    </div>
-    <div class="explain-item">
-      <span class="explain-label">Total P&L</span>
-      <span class="explain-text">Simulated profit/loss if you followed every BUY/SELL signal. Paper trading only — no real money.</span>
-    </div>
-    <div class="explain-item">
-      <span class="explain-label">Win Rate</span>
-      <span class="explain-text">% of trades that moved in the right direction. Above 50% means the signals have an edge.</span>
-    </div>
-  </div>
-  <p class="explain-note">⚠️ Paper trading only. All signals are simulated. Not financial advice.</p>
-</div>
-"""
-
     return TABLE_CSS + '<div class="vk"><div class="grid4">' + \
         card("Recall@5",     '<span class="' + ri + '">' + "{:.1%}".format(avg_recall) + '</span>') + \
         card("Faithfulness", '<span class="' + fi + '">' + "{:.1%}".format(avg_faith)  + '</span>') + \
@@ -200,13 +165,88 @@ def build_stats():
              '<span class="m"> · </span>'
              '<span class="sell">' + str(sell) + ' SELL</span>'
              '<span class="m"> · ' + str(hold) + ' HOLD</span>') + \
-        '</div>' + explain + '</div>'
+        '</div></div>'
+
+
+def make_summary(avg_recall, avg_faith, total_pnl, win_rate, n, open_count, buy, sell, hold):
+    lines = []
+    total = buy + sell + hold
+
+    # AI quality
+    if avg_recall >= 0.95:
+        lines.append("The AI is finding relevant context with near-perfect accuracy ({:.1%}) — the knowledge base is working well.".format(avg_recall))
+    elif avg_recall >= 0.8:
+        lines.append("Context retrieval is solid at {:.1%}.".format(avg_recall))
+    else:
+        lines.append("Context retrieval at {:.1%} is low — signals may be missing key data.".format(avg_recall))
+
+    if avg_faith >= 0.85:
+        lines.append("Reasoning is strongly grounded in real market data ({:.1%} faithfulness).".format(avg_faith))
+    elif avg_faith >= 0.65:
+        lines.append("Reasoning quality is acceptable at {:.1%}.".format(avg_faith))
+    else:
+        lines.append("Faithfulness is low ({:.1%}) — the AI may be going beyond what the data supports.".format(avg_faith))
+
+    # Signal mix
+    if total > 0:
+        hold_pct = hold / total
+        if hold_pct >= 0.7:
+            lines.append("The AI is cautious — {:.0%} of all signals are HOLD, suggesting market conditions are unclear or conflicting.".format(hold_pct))
+        elif buy > sell:
+            lines.append("Signals lean bullish: {} BUY vs {} SELL.".format(buy, sell))
+        elif sell > buy:
+            lines.append("Signals lean bearish: {} SELL vs {} BUY.".format(sell, buy))
+        else:
+            lines.append("Signals are evenly split: {} BUY and {} SELL.".format(buy, sell))
+
+    # P&L verdict
+    if n == 0:
+        lines.append("No completed trades yet to measure performance.")
+    elif n < 10:
+        lines.append("Only {} trade{} tracked so far — need at least 20 to draw real conclusions.".format(n, "s" if n != 1 else ""))
+        if total_pnl > 0:
+            lines.append("Early result is positive at {:+.2f}%, but too soon to read into it.".format(total_pnl))
+        else:
+            lines.append("Early result is {:+.2f}% — too soon to read into it.".format(total_pnl))
+    else:
+        if win_rate >= 0.6:
+            lines.append("Win rate of {:.0%} over {} trades is strong — signals are showing a clear edge.".format(win_rate, n))
+        elif win_rate >= 0.5:
+            lines.append("Win rate of {:.0%} over {} trades is above break-even. Promising but keep watching.".format(win_rate, n))
+        else:
+            lines.append("Win rate of {:.0%} over {} trades is below 50% — signals need improvement.".format(win_rate, n))
+        if total_pnl > 0:
+            lines.append("Total simulated return is {:+.2f}%.".format(total_pnl))
+        else:
+            lines.append("Total simulated return is {:+.2f}%.".format(total_pnl))
+
+    if open_count > 0:
+        lines.append("{} trade{} still open and being tracked against live prices.".format(open_count, "s" if open_count != 1 else ""))
+
+    text = " ".join(lines)
+    return (
+        '<div class="summary">'
+        '<div class="summary-text">' + text + '</div>'
+        '<div class="summary-note">⚠️ Paper trading only — no real money involved. Not financial advice.</div>'
+        '</div>'
+    )
 
 
 def build_performance(tz=0.0):
+    # fetch system stats for summary
+    runs  = supabase.table("ingestion_runs").select("recall_at_5").execute().data or []
+    evals = supabase.table("trade_evals").select("faithfulness").execute().data or []
+    all_t = supabase.table("trades").select("decision").execute().data or []
+    avg_recall = sum(r["recall_at_5"] for r in runs if r["recall_at_5"]) / len(runs) if runs else 0
+    avg_faith  = sum(e["faithfulness"] for e in evals if e["faithfulness"]) / len(evals) if evals else 0
+    buy  = sum(1 for t in all_t if t["decision"] == "BUY")
+    sell = sum(1 for t in all_t if t["decision"] == "SELL")
+    hold = sum(1 for t in all_t if t["decision"] == "HOLD")
+
     trades = supabase.table("trades").select("*").neq("decision","HOLD").order("created_at",desc=True).limit(100).execute().data or []
     if not trades:
-        pnl_cards = TABLE_CSS + '<div class="vk"><div class="grid3">' + card("Total P&L","—") + card("Win Rate","—") + card("Open Trades","0") + '</div></div>'
+        summary   = make_summary(avg_recall, avg_faith, 0, 0, 0, 0, buy, sell, hold)
+        pnl_cards = TABLE_CSS + '<div class="vk"><div class="grid3">' + card("Total P&L","—") + card("Win Rate","—") + card("Open Trades","0") + '</div>' + summary + '</div>'
         return pnl_cards, TABLE_CSS + make_table(["Asset","Signal","Entry","Stop","Target","Now","P&L","Status","When"],[])
 
     prices = get_prices(list({t["asset"] for t in trades if t.get("asset")}))
@@ -240,12 +280,13 @@ def build_performance(tz=0.0):
     win_rate  = winners / len(pnl_vals) if pnl_vals else 0
     pc        = "g" if total_pnl > 0 else ("r" if total_pnl < 0 else "")
 
+    summary   = make_summary(avg_recall, avg_faith, total_pnl, win_rate, len(pnl_vals), open_count, buy, sell, hold)
     pnl_cards = (
         TABLE_CSS + '<div class="vk"><div class="grid3">'
         + card("Total P&L",   '<span class="' + pc + '">{:+.2f}%</span>'.format(total_pnl))
         + card("Win Rate",    "{:.0%} ({}/{})".format(win_rate, winners, len(pnl_vals)))
         + card("Open Trades", str(open_count))
-        + '</div></div>'
+        + '</div>' + summary + '</div>'
     )
     return pnl_cards, TABLE_CSS + make_table(
         ["Asset","Signal","Entry","Stop","Target","Now","P&L","Status","When"], rows
