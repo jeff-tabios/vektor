@@ -35,10 +35,17 @@ tr:hover td{background:#1a1a1a}
 .empty{text-align:center;color:#666;padding:24px!important}
 .g{color:#22c55e}.y{color:#eab308}.r{color:#ef4444}.m{color:#888}
 .buy{color:#22c55e;font-weight:700}.sell{color:#ef4444;font-weight:700}
+.explain{margin:12px 0;padding:14px;background:#111;border:1px solid #2a2a2a;border-radius:12px}
+.explain-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px}
+.explain-item{display:flex;flex-direction:column;gap:3px}
+.explain-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#aaa}
+.explain-text{font-size:12px;color:#666;line-height:1.4}
+.explain-note{font-size:11px;color:#555;text-align:center;margin-top:4px}
 @media(max-width:580px){
   .grid4{grid-template-columns:repeat(2,1fr)}
   .grid3{grid-template-columns:repeat(2,1fr)}
   .card-value{font-size:17px}
+  .explain-row{grid-template-columns:repeat(2,1fr)}
 }
 </style>
 """
@@ -152,15 +159,48 @@ def build_stats():
     ri = "g" if avg_recall >= 0.9 else ("y" if avg_recall >= 0.7 else "r")
     fi = "g" if avg_faith  >= 0.8 else ("y" if avg_faith  >= 0.6 else "r")
 
+    explain = """
+<div class="explain">
+  <div class="explain-row">
+    <div class="explain-item">
+      <span class="explain-label">Recall@5</span>
+      <span class="explain-text">How often the AI finds the right news when searching. 99%+ means it almost never misses relevant context.</span>
+    </div>
+    <div class="explain-item">
+      <span class="explain-label">Faithfulness</span>
+      <span class="explain-text">How grounded the AI's reasoning is in actual news — not hallucination. Above 80% is good.</span>
+    </div>
+    <div class="explain-item">
+      <span class="explain-label">Knowledge</span>
+      <span class="explain-text">Total news + market data chunks in the database. Refreshed every 4 hours automatically.</span>
+    </div>
+    <div class="explain-item">
+      <span class="explain-label">Signals</span>
+      <span class="explain-text">Trading decisions made by the AI. BUY/SELL are tracked for P&L. HOLD means mixed signals — staying out.</span>
+    </div>
+    <div class="explain-item">
+      <span class="explain-label">Total P&L</span>
+      <span class="explain-text">Simulated profit/loss if you followed every BUY/SELL signal. Paper trading only — no real money.</span>
+    </div>
+    <div class="explain-item">
+      <span class="explain-label">Win Rate</span>
+      <span class="explain-text">% of trades that moved in the right direction. Above 50% means the signals have an edge.</span>
+    </div>
+  </div>
+  <p class="explain-note">⚠️ Paper trading only. All signals are simulated. Not financial advice.</p>
+</div>
+"""
+
     return TABLE_CSS + '<div class="vk"><div class="grid4">' + \
         card("Recall@5",     '<span class="' + ri + '">' + "{:.1%}".format(avg_recall) + '</span>') + \
         card("Faithfulness", '<span class="' + fi + '">' + "{:.1%}".format(avg_faith)  + '</span>') + \
         card("Knowledge",    "{:,}<span class='small'>chunks</span>".format(total_chunks)) + \
         card("Signals",
-             '<span class="buy">' + str(buy) + ' BUY</span><br>'
+             '<span class="buy">' + str(buy) + ' BUY</span>'
+             '<span class="m"> · </span>'
              '<span class="sell">' + str(sell) + ' SELL</span>'
-             '<span class="m">&nbsp; ' + str(hold) + ' HOLD</span>') + \
-        '</div></div>'
+             '<span class="m"> · ' + str(hold) + ' HOLD</span>') + \
+        '</div>' + explain + '</div>'
 
 
 def build_performance(tz=0.0):
