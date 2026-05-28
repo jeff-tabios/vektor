@@ -17,10 +17,46 @@ body, .gradio-container { font-family: -apple-system, BlinkMacSystemFont, 'Segoe
 .refresh-btn { border-radius: 10px !important; font-weight: 600 !important; margin: 8px 0 !important; }
 footer { display: none !important; }
 
-@media (max-width: 640px) {
-    .gradio-container { padding: 6px !important; }
-    .gr-markdown h2 { font-size: 20px !important; }
-    .gr-markdown h3 { font-size: 11px !important; }
+/* stat grid */
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 8px;
+}
+.stat-grid-2 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 8px;
+}
+.stat-card {
+    background: #1c1c1c;
+    border: 1px solid #2e2e2e;
+    border-radius: 12px;
+    padding: 14px 16px;
+}
+.stat-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #888;
+    margin-bottom: 6px;
+}
+.stat-value {
+    font-size: 26px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.1;
+    word-break: break-word;
+}
+
+@media (max-width: 600px) {
+    .gradio-container { padding: 8px !important; }
+    .stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
+    .stat-grid-2 { grid-template-columns: repeat(2, 1fr) !important; }
+    .stat-value { font-size: 20px !important; }
+    .stat-label { font-size: 10px !important; }
 }
 """
 
@@ -84,7 +120,8 @@ def performance_table():
             .data or []
         )
         if not trades:
-            return pd.DataFrame(), "### Total P&L\n## —", "### Win Rate\n## —", "### Open\n## —"
+            empty_html = '<div class="stat-grid-2">' + card("Total P&L","—") + card("Win Rate","—") + card("Open","—") + "</div>"
+            return pd.DataFrame(), empty_html
 
         assets = list({t["asset"] for t in trades if t.get("asset")})
         prices = get_current_prices(assets)
@@ -118,14 +155,20 @@ def performance_table():
         open_count = sum(1 for r in rows if any(x in r["Status"] for x in ["open", "winning", "losing"]))
 
         color = "🟢" if total_pnl > 0 else ("🔴" if total_pnl < 0 else "⚪")
-        return (
-            df,
-            f"### Total P&L\n## {color} {total_pnl:+.2f}%",
-            f"### Win Rate\n## {win_rate:.0%}  ({winners}/{len(pnl_vals)})",
-            f"### Open\n## {open_count} trades",
-        )
+
+        pnl_html = '<div class="stat-grid-2">'
+        pnl_html += card("Total P&L",  f"{color} {total_pnl:+.2f}%")
+        pnl_html += card("Win Rate",   f"{win_rate:.0%} ({winners}/{len(pnl_vals)})")
+        pnl_html += card("Open",       f"{open_count} trades")
+        pnl_html += "</div>"
+
+        return df, pnl_html
     except Exception as e:
-        return pd.DataFrame({"error": [str(e)]}), "—", "—", "—"
+        return pd.DataFrame({"error": [str(e)]}), "<p>Error loading P&L</p>"
+
+
+def card(label, value):
+    return f'<div class="stat-card"><div class="stat-label">{label}</div><div class="stat-value">{value}</div></div>'
 
 
 def summary_stats():
@@ -144,14 +187,15 @@ def summary_stats():
         recall_icon = "🟢" if avg_recall >= 0.9 else ("🟡" if avg_recall >= 0.7 else "🔴")
         faith_icon  = "🟢" if avg_faith  >= 0.8 else ("🟡" if avg_faith  >= 0.6 else "🔴")
 
-        return (
-            f"### Recall@5\n## {recall_icon} {avg_recall:.1%}",
-            f"### Faithfulness\n## {faith_icon} {avg_faith:.1%}",
-            f"### Knowledge\n## {total_chunks:,} chunks",
-            f"### Signals\n## 🟢 {buy} · 🔴 {sell} · ⚪ {hold}",
-        )
+        html = '<div class="stat-grid">'
+        html += card("Recall@5",     f"{recall_icon} {avg_recall:.1%}")
+        html += card("Faithfulness", f"{faith_icon} {avg_faith:.1%}")
+        html += card("Knowledge",    f"{total_chunks:,} chunks")
+        html += card("Signals",      f"🟢{buy} 🔴{sell} ⚪{hold}")
+        html += "</div>"
+        return html
     except Exception as e:
-        return str(e), "—", "—", "—"
+        return f"<p>Error: {e}</p>"
 
 
 def recent_trades_table():
@@ -183,12 +227,12 @@ def recent_trades_table():
 
 
 def refresh():
-    stats = summary_stats()
-    perf  = performance_table()
+    stats_html = summary_stats()
+    perf_df, pnl_html = performance_table()
     return (
-        stats[0], stats[1], stats[2], stats[3],
-        perf[1], perf[2], perf[3],
-        perf[0],
+        stats_html,
+        pnl_html,
+        perf_df,
         recent_trades_table(),
         fetch("ingestion_runs", cols="id,chunks_added,recall_at_5,created_at"),
         fetch("system_config", order_col="key"),
@@ -200,18 +244,8 @@ with gr.Blocks(title="Vektor", theme=gr.themes.Monochrome(), css=CSS) as demo:
 
     gr.Markdown("# 📊 Vektor Trader")
 
-    with gr.Row(equal_height=True):
-        recall_md  = gr.Markdown("### Recall@5\n## —")
-        faith_md   = gr.Markdown("### Faithfulness\n## —")
-        chunks_md  = gr.Markdown("### Knowledge\n## —")
-        signals_md = gr.Markdown("### Signals\n## —")
-
-    gr.HTML("<hr style='border:none;border-top:1px solid #333;margin:4px 0'>")
-
-    with gr.Row(equal_height=True):
-        pnl_md     = gr.Markdown("### Total P&L\n## —")
-        winrate_md = gr.Markdown("### Win Rate\n## —")
-        open_md    = gr.Markdown("### Open\n## —")
+    stats_html = gr.HTML('<div class="stat-grid"><div class="stat-card"><div class="stat-label">Loading...</div></div></div>')
+    pnl_html   = gr.HTML('<div class="stat-grid-2"><div class="stat-card"><div class="stat-label">Loading...</div></div></div>')
 
     refresh_btn = gr.Button("🔄 Refresh", variant="primary", elem_classes=["refresh-btn"])
 
@@ -233,8 +267,7 @@ with gr.Blocks(title="Vektor", theme=gr.themes.Monochrome(), css=CSS) as demo:
             config_tbl = gr.DataFrame(wrap=True)
 
     outputs = [
-        recall_md, faith_md, chunks_md, signals_md,
-        pnl_md, winrate_md, open_md,
+        stats_html, pnl_html,
         perf_tbl, trades_tbl, ingestion_tbl, config_tbl,
     ]
 
