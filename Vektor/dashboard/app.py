@@ -52,13 +52,17 @@ footer{display:none!important}
 
 # ── Helpers ─────────────────────────────────────────────
 
+UTC_OFFSET_HOURS = 4  # Dubai (UTC+4)
+
 def fmt_date(ts):
     if not ts:
         return "—"
     try:
-        dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-        h  = dt.hour % 12 or 12
-        ap = "am" if dt.hour < 12 else "pm"
+        from datetime import timezone, timedelta
+        dt  = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        dt  = dt.astimezone(timezone(timedelta(hours=UTC_OFFSET_HOURS)))
+        h   = dt.hour % 12 or 12
+        ap  = "am" if dt.hour < 12 else "pm"
         return "{} {}, {}:{} {}".format(dt.strftime("%b"), dt.day, h, dt.strftime("%M"), ap)
     except Exception:
         return ts[:10]
