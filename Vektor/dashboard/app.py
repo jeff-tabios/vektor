@@ -20,6 +20,7 @@ TABLE_CSS = """
 *{color:#fff!important;box-sizing:border-box}
 html,body,.vk{background:#111!important}
 .vk{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding-bottom:20px}
+.section-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#555;margin-bottom:8px;margin-top:16px}
 .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:4px}
 .card{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:12px;padding:14px;min-width:0}
@@ -185,7 +186,9 @@ def build_stats():
     trust = (avg_recall + avg_faith) / 2
     ti    = "g" if trust >= 0.85 else ("y" if trust >= 0.7 else "r")
 
-    return TABLE_CSS + '<div class="vk"><div class="grid4">' + \
+    return TABLE_CSS + '<div class="vk">' + \
+        '<div class="section-title">🧠 AI System Health</div>' + \
+        '<div class="grid4">' + \
         card("Recall@5",        '<span class="' + ri + '">' + "{:.1%}".format(avg_recall) + '</span>') + \
         card("Faithfulness",    '<span class="' + fi + '">' + "{:.1%}".format(avg_faith)  + '</span>') + \
         card("Knowledge",       "{:,}<span class='small'>chunks</span>".format(total_chunks)) + \
@@ -277,7 +280,7 @@ def build_performance(tz=0.0):
 
     if not trades:
         summary   = make_summary(avg_recall, avg_faith, 0, 0, 0, 0, buy, sell, hold)
-        pnl_cards = TABLE_CSS + '<div class="vk"><div class="grid4">' + sig_card + card("Total P&L","—") + card("Win Rate","—") + card("Open Trades","0") + '</div>' + summary + '</div>'
+        pnl_cards = TABLE_CSS + '<div class="vk"><div class="section-title">📊 Trading Performance</div><div class="grid4">' + sig_card + card("Total P&L","—") + card("Win Rate","—") + card("Open Trades","0") + '</div>' + summary + '</div>'
         return pnl_cards, TABLE_CSS + make_table(["Asset","Signal","Entry","Stop","Target","Now","P&L","Status","When"],[])
 
     prices = get_prices(list({t["asset"] for t in trades if t.get("asset")}))
@@ -313,7 +316,7 @@ def build_performance(tz=0.0):
 
     summary   = make_summary(avg_recall, avg_faith, total_pnl, win_rate, len(pnl_vals), open_count, buy, sell, hold)
     pnl_cards = (
-        TABLE_CSS + '<div class="vk"><div class="grid4">'
+        TABLE_CSS + '<div class="vk"><div class="section-title">📊 Trading Performance</div><div class="grid4">'
         + sig_card
         + card("Total P&L",   '<span class="' + pc + '">{:+.2f}%</span>'.format(total_pnl))
         + card("Win Rate",    "{:.0%} ({}/{})".format(win_rate, winners, len(pnl_vals)))
