@@ -37,3 +37,10 @@ jobs:
       - name: Run ingestion
         working-directory: Vektor/ingestion
         run: python main.py
+
+      - name: Deploy dashboard to HF Spaces
+        run: |
+          pip install huggingface_hub
+          huggingface-cli login --token $HF_TOKEN
+          cd Vektor/dashboard
+          hf upload jefftabios/vektor . --repo-type space
