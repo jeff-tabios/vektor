@@ -20,14 +20,14 @@ TABLE_CSS = """
 *{color:#fff!important;box-sizing:border-box}
 html,body,.vk{background:#111!important}
 .vk{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding-bottom:4px}
-.section-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#555;margin-bottom:8px;margin-top:4px}
-.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
-.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:4px}
+.section-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#555;margin-bottom:5px;margin-top:4px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:6px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:3px}
 .card{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:12px;padding:14px;min-width:0}
 .card-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#666;margin-bottom:6px}
 .card-value{font-size:20px;font-weight:700;line-height:1.3;word-break:break-word}
 .card-value .small{font-size:13px;font-weight:400;color:#aaa;display:block;margin-top:2px}
-hr{border:none;border-top:1px solid #2a2a2a;margin:12px 0}
+hr{border:none;border-top:1px solid #2a2a2a;margin:8px 0}
 .tw{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:12px;border:1px solid #2a2a2a}
 table{width:100%;border-collapse:collapse;font-size:13px}
 thead tr{background:#161616}
