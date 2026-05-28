@@ -1,7 +1,6 @@
 import os
 from datetime import datetime
 import gradio as gr
-import pandas as pd
 import yfinance as yf
 from supabase import create_client
 
@@ -12,135 +11,30 @@ SYMBOL_MAP = {
     "AAPL": "AAPL", "AMD": "AMD", "BTC": "BTC-USD", "ETH": "ETH-USD",
 }
 
-CSS = """
-body, .gradio-container {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-}
-.gradio-container {
-    max-width: 960px !important;
-    margin: 0 auto !important;
-    padding: 12px !important;
-}
-footer { display: none !important; }
-
-/* ── stat grid ── */
-.stat-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
-    margin-bottom: 8px;
-}
-.stat-grid-2 {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
-    margin-bottom: 8px;
-}
-.stat-card {
-    background: #1c1c1c;
-    border: 1px solid #2e2e2e;
-    border-radius: 12px;
-    padding: 12px 14px;
-    overflow: hidden;
-}
-.stat-label {
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: #888;
-    margin-bottom: 4px;
-    white-space: nowrap;
-}
-.stat-value {
-    font-size: 22px;
-    font-weight: 700;
-    color: #fff;
-    line-height: 1.2;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-/* ── scrollable tables ── */
-.gr-dataframe, .table-wrap, [data-testid="dataframe"] {
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-}
-.gr-dataframe table, .dataframe {
-    min-width: max-content !important;
-}
-.gr-dataframe td, .gr-dataframe th {
-    white-space: nowrap !important;
-    padding: 6px 12px !important;
-    font-size: 13px !important;
-}
-
-/* ── refresh button ── */
-.refresh-btn {
-    border-radius: 10px !important;
-    font-weight: 600 !important;
-    margin: 8px 0 !important;
-    width: 100% !important;
-}
-
-/* ── mobile ── */
-@media (max-width: 600px) {
-    .gradio-container { padding: 8px !important; }
-    .stat-grid  { grid-template-columns: repeat(2, 1fr) !important; }
-    .stat-grid-2 { grid-template-columns: repeat(2, 1fr) !important; }
-    .stat-value { font-size: 18px !important; }
-    .stat-label { font-size: 9px !important; }
-}
-"""
-
-
 # ── Helpers ─────────────────────────────────────────────
 
 def fmt_date(ts):
-    """'2026-05-27T14:30:00' → 'May 27, 2:30pm'"""
     if not ts:
-        return ""
+        return "—"
     try:
         dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-        month = dt.strftime("%b")
-        day   = dt.day
-        hour  = dt.hour % 12 or 12
-        mins  = dt.strftime("%M")
-        ampm  = "am" if dt.hour < 12 else "pm"
-        return f"{month} {day}, {hour}:{mins}{ampm}"
+        h  = dt.hour % 12 or 12
+        ap = "am" if dt.hour < 12 else "pm"
+        return f"{dt.strftime('%b')} {dt.day}, {h}:{dt.strftime('%M')}{ap}"
     except Exception:
         return ts[:10]
 
-
-def card(label, value):
-    return (
-        f'<div class="stat-card">'
-        f'<div class="stat-label">{label}</div>'
-        f'<div class="stat-value">{value}</div>'
-        f'</div>'
-    )
-
-
-def fetch(table, cols="*", limit=50, order_col="created_at"):
-    try:
-        r = supabase.table(table).select(cols).order(order_col, desc=True).limit(limit).execute()
-        return pd.DataFrame(r.data) if r.data else pd.DataFrame()
-    except Exception as e:
-        return pd.DataFrame({"error": [str(e)]})
-
-
-def get_current_prices(assets):
+def get_prices(assets):
     prices = {}
     for asset in assets:
-        symbol = SYMBOL_MAP.get(asset, asset)
+        sym = SYMBOL_MAP.get(asset, asset)
         try:
-            hist = yf.Ticker(symbol).history(period="1d", interval="5m")
-            if not hist.empty:
-                prices[asset] = round(float(hist["Close"].iloc[-1]), 4)
+            h = yf.Ticker(sym).history(period="1d", interval="5m")
+            if not h.empty:
+                prices[asset] = round(float(h["Close"].iloc[-1]), 2)
         except Exception:
             pass
     return prices
-
 
 def calc_pnl(decision, entry, current):
     if not entry or not current or decision == "HOLD":
@@ -149,193 +43,366 @@ def calc_pnl(decision, entry, current):
         return round((current - entry) / entry * 100, 2)
     if decision == "SELL":
         return round((entry - current) / entry * 100, 2)
-    return None
-
 
 def get_status(decision, entry, current, sl, tp):
-    if decision == "HOLD":
-        return "— hold"
-    if not entry or not current:
-        return "? unknown"
+    if decision == "HOLD": return "hold"
+    if not entry or not current: return "unknown"
     if decision == "BUY":
-        if sl and current <= sl:  return "❌ stopped"
-        if tp and current >= tp:  return "✅ target"
+        if sl and current <= sl: return "stopped"
+        if tp and current >= tp: return "target"
     if decision == "SELL":
-        if sl and current >= sl:  return "❌ stopped"
-        if tp and current <= tp:  return "✅ target"
+        if sl and current >= sl: return "stopped"
+        if tp and current <= tp: return "target"
     pnl = calc_pnl(decision, entry, current)
-    if pnl is None:               return "⏳ open"
-    return "📈 winning" if pnl > 0 else "📉 losing"
+    if pnl is None: return "open"
+    return "winning" if pnl > 0 else "losing"
 
+STATUS_ICON = {
+    "stopped": "❌", "target": "✅", "winning": "📈",
+    "losing": "📉", "open": "⏳", "hold": "—", "unknown": "?"
+}
 
-# ── Data functions ───────────────────────────────────────
+# ── HTML builders ────────────────────────────────────────
 
-def summary_stats():
+def stat_card(label, value, color=""):
+    return f'''
+    <div class="card">
+        <div class="card-label">{label}</div>
+        <div class="card-value {color}">{value}</div>
+    </div>'''
+
+def td(val, cls=""):
+    return f'<td class="{cls}">{val if val is not None else "—"}</td>'
+
+def render_table(headers, rows):
+    ths = "".join(f"<th>{h}</th>" for h in headers)
+    trs = ""
+    for row in rows:
+        trs += "<tr>" + "".join(td(c[0], c[1]) if isinstance(c, tuple) else td(c) for c in row) + "</tr>"
+    if not rows:
+        trs = f'<tr><td colspan="{len(headers)}" class="empty">No data yet</td></tr>'
+    return f'''
+    <div class="table-wrap">
+        <table><thead><tr>{ths}</tr></thead><tbody>{trs}</tbody></table>
+    </div>'''
+
+# ── Main render ──────────────────────────────────────────
+
+def render():
     try:
-        runs   = supabase.table("ingestion_runs").select("recall_at_5,chunks_added").execute().data or []
-        trades = supabase.table("trades").select("decision").execute().data or []
+        # fetch
+        runs   = supabase.table("ingestion_runs").select("recall_at_5,chunks_added,created_at").order("created_at", desc=True).limit(20).execute().data or []
+        all_trades = supabase.table("trades").select("*").order("created_at", desc=True).limit(100).execute().data or []
         evals  = supabase.table("trade_evals").select("faithfulness").execute().data or []
+        config = supabase.table("system_config").select("key,value").execute().data or []
 
+        # stats
         avg_recall   = sum(r["recall_at_5"] for r in runs if r["recall_at_5"]) / len(runs) if runs else 0
         avg_faith    = sum(e["faithfulness"] for e in evals if e["faithfulness"]) / len(evals) if evals else 0
         total_chunks = sum(r["chunks_added"] for r in runs if r["chunks_added"]) if runs else 0
-        buy  = sum(1 for t in trades if t["decision"] == "BUY")
-        sell = sum(1 for t in trades if t["decision"] == "SELL")
-        hold = sum(1 for t in trades if t["decision"] == "HOLD")
+        buy  = sum(1 for t in all_trades if t["decision"] == "BUY")
+        sell = sum(1 for t in all_trades if t["decision"] == "SELL")
+        hold = sum(1 for t in all_trades if t["decision"] == "HOLD")
 
-        ri = "🟢" if avg_recall >= 0.9 else ("🟡" if avg_recall >= 0.7 else "🔴")
-        fi = "🟢" if avg_faith  >= 0.8 else ("🟡" if avg_faith  >= 0.6 else "🔴")
+        ri = "green" if avg_recall >= 0.9 else ("yellow" if avg_recall >= 0.7 else "red")
+        fi = "green" if avg_faith  >= 0.8 else ("yellow" if avg_faith  >= 0.6 else "red")
 
-        html  = '<div class="stat-grid">'
-        html += card("Recall@5",     f"{ri} {avg_recall:.1%}")
-        html += card("Faithfulness", f"{fi} {avg_faith:.1%}")
-        html += card("Knowledge",    f"{total_chunks:,}")
-        html += card("Signals",      f"🟢{buy} 🔴{sell} ⚪{hold}")
-        html += "</div>"
-        return html
-    except Exception as e:
-        return f"<p style='color:red'>Error: {e}</p>"
+        # performance
+        active = [t for t in all_trades if t["decision"] != "HOLD"]
+        assets = list({t["asset"] for t in active if t.get("asset")})
+        prices = get_prices(assets) if assets else {}
 
-
-def performance_table():
-    _empty_pnl = (
-        '<div class="stat-grid-2">'
-        + card("Total P&L", "—")
-        + card("Win Rate",  "—")
-        + card("Open",      "—")
-        + "</div>"
-    )
-    try:
-        trades = (
-            supabase.table("trades")
-            .select("*")
-            .neq("decision", "HOLD")
-            .order("created_at", desc=True)
-            .limit(100)
-            .execute()
-            .data or []
-        )
-        if not trades:
-            return pd.DataFrame(), _empty_pnl
-
-        assets = list({t["asset"] for t in trades if t.get("asset")})
-        prices = get_current_prices(assets)
-
-        rows = []
-        for t in trades:
+        perf_rows = []
+        pnl_vals  = []
+        open_count = 0
+        for t in active:
             cp     = prices.get(t["asset"])
             entry  = t.get("price_at_trade")
             sl     = t.get("stop_loss")
             tp     = t.get("take_profit")
             pnl    = calc_pnl(t["decision"], entry, cp)
             status = get_status(t["decision"], entry, cp, sl, tp)
-            rows.append({
-                "Asset":    t["asset"],
-                "Signal":   t["decision"],
-                "Entry":    entry,
-                "Stop":     sl,
-                "Target":   tp,
-                "Now":      cp,
-                "P&L":      f"{pnl:+.2f}%" if pnl is not None else "—",
-                "Status":   status,
-                "When":     fmt_date(t.get("created_at")),
-            })
+            icon   = STATUS_ICON.get(status, "")
+            pnl_str = f"{pnl:+.2f}%" if pnl is not None else "—"
+            pnl_cls = "green" if (pnl or 0) > 0 else ("red" if (pnl or 0) < 0 else "")
+            sig_cls = "buy" if t["decision"] == "BUY" else "sell"
+            if pnl is not None: pnl_vals.append(pnl)
+            if status in ("winning", "losing", "open"): open_count += 1
+            perf_rows.append([
+                t["asset"],
+                (t["decision"], sig_cls),
+                f"${entry:,.2f}" if entry else "—",
+                f"${sl:,.2f}"    if sl    else "—",
+                f"${tp:,.2f}"    if tp    else "—",
+                f"${cp:,.2f}"    if cp    else "—",
+                (pnl_str, pnl_cls),
+                f"{icon} {status}",
+                fmt_date(t.get("created_at")),
+            ])
 
-        df = pd.DataFrame(rows)
+        total_pnl = round(sum(pnl_vals), 2) if pnl_vals else 0
+        winners   = sum(1 for v in pnl_vals if v > 0)
+        win_rate  = winners / len(pnl_vals) if pnl_vals else 0
+        pnl_color = "green" if total_pnl > 0 else ("red" if total_pnl < 0 else "")
 
-        pnl_vals   = [float(r["P&L"].replace("%", "")) for r in rows if r["P&L"] != "—"]
-        total_pnl  = round(sum(pnl_vals), 2) if pnl_vals else 0
-        winners    = sum(1 for v in pnl_vals if v > 0)
-        win_rate   = winners / len(pnl_vals) if pnl_vals else 0
-        open_count = sum(1 for r in rows if any(x in r["Status"] for x in ["open", "winning", "losing"]))
-
-        color = "🟢" if total_pnl > 0 else ("🔴" if total_pnl < 0 else "⚪")
-
-        pnl_html  = '<div class="stat-grid-2">'
-        pnl_html += card("Total P&L", f"{color} {total_pnl:+.2f}%")
-        pnl_html += card("Win Rate",  f"{win_rate:.0%} ({winners}/{len(pnl_vals)})")
-        pnl_html += card("Open",      f"{open_count}")
-        pnl_html += "</div>"
-
-        return df, pnl_html
-    except Exception as e:
-        return pd.DataFrame({"error": [str(e)]}), _empty_pnl
-
-
-def recent_trades_table():
-    try:
-        trades = (
-            supabase.table("trades")
-            .select("asset,decision,confidence,price_at_trade,stop_loss,take_profit,created_at")
-            .order("created_at", desc=True)
-            .limit(30)
-            .execute()
-            .data or []
+        perf_html = render_table(
+            ["Asset","Signal","Entry","Stop","Target","Now","P&L","Status","When"],
+            perf_rows
         )
-        if not trades:
-            return pd.DataFrame()
-        rows = []
-        for t in trades:
-            rows.append({
-                "Asset":   t["asset"],
-                "Signal":  t["decision"],
-                "Conf":    f"{t['confidence']:.0%}" if t.get("confidence") else "—",
-                "Entry":   t.get("price_at_trade"),
-                "Stop":    t.get("stop_loss"),
-                "Target":  t.get("take_profit"),
-                "When":    fmt_date(t.get("created_at")),
-            })
-        return pd.DataFrame(rows)
+
+        # all signals
+        sig_rows = []
+        for t in all_trades:
+            sig_cls = "buy" if t["decision"] == "BUY" else ("sell" if t["decision"] == "SELL" else "muted")
+            conf = f"{t['confidence']:.0%}" if t.get("confidence") else "—"
+            entry = t.get("price_at_trade")
+            sl    = t.get("stop_loss")
+            tp    = t.get("take_profit")
+            sig_rows.append([
+                t["asset"],
+                (t["decision"], sig_cls),
+                conf,
+                f"${entry:,.2f}" if entry else "—",
+                f"${sl:,.2f}"    if sl    else "—",
+                f"${tp:,.2f}"    if tp    else "—",
+                fmt_date(t.get("created_at")),
+            ])
+
+        sigs_html = render_table(
+            ["Asset","Signal","Conf","Entry","Stop","Target","When"],
+            sig_rows
+        )
+
+        # ingestion runs
+        ing_rows = []
+        for r in runs:
+            rc = r.get("recall_at_5") or 0
+            rc_cls = "green" if rc >= 0.9 else ("yellow" if rc >= 0.7 else "red")
+            ing_rows.append([
+                str(r.get("chunks_added", "—")),
+                (f"{rc:.1%}", rc_cls),
+                fmt_date(r.get("created_at")),
+            ])
+        ing_html = render_table(["Chunks Added", "Recall@5", "When"], ing_rows)
+
+        # config
+        cfg_rows = [[r["key"], r["value"]] for r in config]
+        cfg_html = render_table(["Key", "Value"], cfg_rows)
+
+        return HTML_TEMPLATE.format(
+            recall=f"{avg_recall:.1%}", recall_cls=ri,
+            faith=f"{avg_faith:.1%}",  faith_cls=fi,
+            chunks=f"{total_chunks:,}",
+            signals=f"🟢 {buy} &nbsp; 🔴 {sell} &nbsp; ⚪ {hold}",
+            total_pnl=f"{total_pnl:+.2f}%", pnl_cls=pnl_color,
+            win_rate=f"{win_rate:.0%} ({winners}/{len(pnl_vals)})",
+            open_count=str(open_count),
+            perf_html=perf_html,
+            sigs_html=sigs_html,
+            ing_html=ing_html,
+            cfg_html=cfg_html,
+        )
     except Exception as e:
-        return pd.DataFrame({"error": [str(e)]})
+        return f"<p style='color:red;padding:20px'>Error: {e}</p>"
 
 
-def refresh():
-    stats_html      = summary_stats()
-    perf_df, pnl_html = performance_table()
-    return (
-        stats_html,
-        pnl_html,
-        perf_df,
-        recent_trades_table(),
-        fetch("ingestion_runs", cols="id,chunks_added,recall_at_5,created_at"),
-        fetch("system_config", order_col="key"),
-    )
+HTML_TEMPLATE = """
+<style>
+*, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
+.vk {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #e8e8e8; padding: 16px; max-width: 960px; margin: 0 auto; }}
+h1 {{ font-size: 22px; font-weight: 800; margin-bottom: 16px; letter-spacing: -0.5px; }}
+
+/* stat grids */
+.grid4, .grid3 {{ display: grid; gap: 10px; margin-bottom: 12px; }}
+.grid4 {{ grid-template-columns: repeat(4, 1fr); }}
+.grid3 {{ grid-template-columns: repeat(3, 1fr); }}
+.card {{ background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; padding: 14px; }}
+.card-label {{ font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: #666; margin-bottom: 6px; }}
+.card-value {{ font-size: 22px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
+
+/* divider */
+hr {{ border: none; border-top: 1px solid #2a2a2a; margin: 12px 0; }}
+
+/* tabs */
+.tabs {{ display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }}
+.tab-btn {{ padding: 7px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;
+           background: #1a1a1a; border: 1px solid #2a2a2a; color: #888; transition: all 0.15s; }}
+.tab-btn.active, .tab-btn:hover {{ background: #2a2a2a; color: #fff; border-color: #444; }}
+.tab-pane {{ display: none; }}
+.tab-pane.active {{ display: block; }}
+
+/* table */
+.table-wrap {{ overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 12px; border: 1px solid #2a2a2a; }}
+table {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
+thead tr {{ background: #161616; }}
+th {{ padding: 10px 14px; text-align: left; font-size: 10px; text-transform: uppercase;
+     letter-spacing: 0.07em; color: #666; white-space: nowrap; border-bottom: 1px solid #2a2a2a; }}
+td {{ padding: 10px 14px; white-space: nowrap; border-bottom: 1px solid #1e1e1e; }}
+tr:last-child td {{ border-bottom: none; }}
+tr:hover td {{ background: #1a1a1a; }}
+.empty {{ text-align: center; color: #666; padding: 24px !important; }}
+
+/* colors */
+.green  {{ color: #22c55e; }}
+.yellow {{ color: #eab308; }}
+.red    {{ color: #ef4444; }}
+.muted  {{ color: #888; }}
+.buy    {{ color: #22c55e; font-weight: 700; }}
+.sell   {{ color: #ef4444; font-weight: 700; }}
+
+/* mobile */
+@media (max-width: 580px) {{
+    .grid4 {{ grid-template-columns: repeat(2, 1fr); }}
+    .grid3 {{ grid-template-columns: repeat(2, 1fr); }}
+    .card-value {{ font-size: 18px; }}
+    h1 {{ font-size: 18px; }}
+}}
+</style>
+
+<div class="vk">
+  <h1>📊 Vektor Trader</h1>
+
+  <div class="grid4">
+    {stat_card_recall}
+    {stat_card_faith}
+    {stat_card_chunks}
+    {stat_card_signals}
+  </div>
+
+  <hr>
+
+  <div class="grid3">
+    {stat_card_pnl}
+    {stat_card_winrate}
+    {stat_card_open}
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showTab('perf',this)">📈 Performance</button>
+    <button class="tab-btn" onclick="showTab('sigs',this)">📋 All Signals</button>
+    <button class="tab-btn" onclick="showTab('ing',this)">🗄️ Ingestion</button>
+    <button class="tab-btn" onclick="showTab('cfg',this)">⚙️ System</button>
+  </div>
+
+  <div id="tab-perf" class="tab-pane active">{perf_html}</div>
+  <div id="tab-sigs" class="tab-pane">{sigs_html}</div>
+  <div id="tab-ing"  class="tab-pane">{ing_html}</div>
+  <div id="tab-cfg"  class="tab-pane">{cfg_html}</div>
+</div>
+
+<script>
+function showTab(name, btn) {{
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+}}
+</script>
+"""
+
+# Patch: inject stat cards into template
+_orig_render = render
+def render():
+    try:
+        runs   = supabase.table("ingestion_runs").select("recall_at_5,chunks_added,created_at").order("created_at", desc=True).limit(20).execute().data or []
+        all_trades = supabase.table("trades").select("*").order("created_at", desc=True).limit(100).execute().data or []
+        evals  = supabase.table("trade_evals").select("faithfulness").execute().data or []
+        config = supabase.table("system_config").select("key,value").execute().data or []
+
+        avg_recall   = sum(r["recall_at_5"] for r in runs if r["recall_at_5"]) / len(runs) if runs else 0
+        avg_faith    = sum(e["faithfulness"] for e in evals if e["faithfulness"]) / len(evals) if evals else 0
+        total_chunks = sum(r["chunks_added"] for r in runs if r["chunks_added"]) if runs else 0
+        buy  = sum(1 for t in all_trades if t["decision"] == "BUY")
+        sell = sum(1 for t in all_trades if t["decision"] == "SELL")
+        hold = sum(1 for t in all_trades if t["decision"] == "HOLD")
+        ri = "green" if avg_recall >= 0.9 else ("yellow" if avg_recall >= 0.7 else "red")
+        fi = "green" if avg_faith  >= 0.8 else ("yellow" if avg_faith  >= 0.6 else "red")
+
+        active = [t for t in all_trades if t["decision"] != "HOLD"]
+        assets = list({t["asset"] for t in active if t.get("asset")})
+        prices = get_prices(assets) if assets else {}
+
+        perf_rows, pnl_vals, open_count = [], [], 0
+        for t in active:
+            cp     = prices.get(t["asset"])
+            entry  = t.get("price_at_trade")
+            sl     = t.get("stop_loss")
+            tp     = t.get("take_profit")
+            pnl    = calc_pnl(t["decision"], entry, cp)
+            status = get_status(t["decision"], entry, cp, sl, tp)
+            icon   = STATUS_ICON.get(status, "")
+            pnl_str = f"{pnl:+.2f}%" if pnl is not None else "—"
+            pnl_cls = "green" if (pnl or 0) > 0 else ("red" if (pnl or 0) < 0 else "")
+            sig_cls = "buy" if t["decision"] == "BUY" else "sell"
+            if pnl is not None: pnl_vals.append(pnl)
+            if status in ("winning", "losing", "open"): open_count += 1
+            perf_rows.append([
+                t["asset"], (t["decision"], sig_cls),
+                f"${entry:,.2f}" if entry else "—",
+                f"${sl:,.2f}"    if sl    else "—",
+                f"${tp:,.2f}"    if tp    else "—",
+                f"${cp:,.2f}"    if cp    else "—",
+                (pnl_str, pnl_cls), f"{icon} {status}",
+                fmt_date(t.get("created_at")),
+            ])
+
+        total_pnl = round(sum(pnl_vals), 2) if pnl_vals else 0
+        winners   = sum(1 for v in pnl_vals if v > 0)
+        win_rate  = winners / len(pnl_vals) if pnl_vals else 0
+        pnl_color = "green" if total_pnl > 0 else ("red" if total_pnl < 0 else "")
+
+        sig_rows = []
+        for t in all_trades:
+            sig_cls = "buy" if t["decision"] == "BUY" else ("sell" if t["decision"] == "SELL" else "muted")
+            conf  = f"{t['confidence']:.0%}" if t.get("confidence") else "—"
+            entry = t.get("price_at_trade")
+            sl    = t.get("stop_loss")
+            tp    = t.get("take_profit")
+            sig_rows.append([
+                t["asset"], (t["decision"], sig_cls), conf,
+                f"${entry:,.2f}" if entry else "—",
+                f"${sl:,.2f}"    if sl    else "—",
+                f"${tp:,.2f}"    if tp    else "—",
+                fmt_date(t.get("created_at")),
+            ])
+
+        ing_rows = []
+        for r in runs:
+            rc = r.get("recall_at_5") or 0
+            rc_cls = "green" if rc >= 0.9 else ("yellow" if rc >= 0.7 else "red")
+            ing_rows.append([str(r.get("chunks_added","—")), (f"{rc:.1%}", rc_cls), fmt_date(r.get("created_at"))])
+
+        cfg_rows = [[r["key"], r["value"]] for r in config]
+
+        html = HTML_TEMPLATE.replace("{stat_card_recall}",   stat_card("Recall@5",     f'<span class="{ri}">{avg_recall:.1%}</span>'))
+        html = html.replace("{stat_card_faith}",    stat_card("Faithfulness", f'<span class="{fi}">{avg_faith:.1%}</span>'))
+        html = html.replace("{stat_card_chunks}",   stat_card("Knowledge",    f"{total_chunks:,} chunks"))
+        html = html.replace("{stat_card_signals}",  stat_card("Signals",      f'<span class="buy">{buy} BUY</span> · <span class="sell">{sell} SELL</span> · <span class="muted">{hold}</span>'))
+        html = html.replace("{stat_card_pnl}",      stat_card("Total P&L",    f'<span class="{pnl_color}">{total_pnl:+.2f}%</span>'))
+        html = html.replace("{stat_card_winrate}",  stat_card("Win Rate",     f"{win_rate:.0%} ({winners}/{len(pnl_vals)})"))
+        html = html.replace("{stat_card_open}",     stat_card("Open Trades",  str(open_count)))
+        html = html.replace("{perf_html}", render_table(["Asset","Signal","Entry","Stop","Target","Now","P&L","Status","When"], perf_rows))
+        html = html.replace("{sigs_html}", render_table(["Asset","Signal","Conf","Entry","Stop","Target","When"], sig_rows))
+        html = html.replace("{ing_html}",  render_table(["Chunks","Recall@5","When"], ing_rows))
+        html = html.replace("{cfg_html}",  render_table(["Key","Value"], cfg_rows))
+        return html
+
+    except Exception as e:
+        import traceback
+        return f"<p style='color:red;padding:20px'>Error: {e}<br><pre>{traceback.format_exc()}</pre></p>"
 
 
-# ── Layout ──────────────────────────────────────────────
-with gr.Blocks(title="Vektor", theme=gr.themes.Monochrome(), css=CSS) as demo:
+# ── Gradio shell (just a container + refresh button) ────
+SHELL_CSS = """
+.gradio-container { max-width: 100% !important; padding: 0 !important; background: #111 !important; }
+.gr-button { margin: 8px 16px !important; }
+footer { display: none !important; }
+"""
 
-    gr.Markdown("# 📊 Vektor Trader")
-
-    stats_html = gr.HTML()
-    pnl_html   = gr.HTML()
-
-    refresh_btn = gr.Button("🔄 Refresh", variant="primary", elem_classes=["refresh-btn"])
-
-    with gr.Tabs():
-        with gr.Tab("📈 Performance"):
-            gr.Markdown("*BUY/SELL signals vs current price.*")
-            perf_tbl = gr.DataFrame(wrap=False)
-
-        with gr.Tab("📋 All Signals"):
-            gr.Markdown("*Every signal including HOLDs.*")
-            trades_tbl = gr.DataFrame(wrap=False)
-
-        with gr.Tab("🗄️ Ingestion"):
-            gr.Markdown("*News & market data — runs every 4h.*")
-            ingestion_tbl = gr.DataFrame(wrap=False)
-
-        with gr.Tab("⚙️ System"):
-            gr.Markdown("*Config values for trader & healer.*")
-            config_tbl = gr.DataFrame(wrap=False)
-
-    outputs = [
-        stats_html, pnl_html,
-        perf_tbl, trades_tbl, ingestion_tbl, config_tbl,
-    ]
-
-    refresh_btn.click(refresh, outputs=outputs)
-    demo.load(refresh, outputs=outputs)
+with gr.Blocks(css=SHELL_CSS, theme=gr.themes.Monochrome()) as demo:
+    dashboard = gr.HTML()
+    refresh_btn = gr.Button("🔄 Refresh", variant="primary")
+    refresh_btn.click(render, outputs=dashboard)
+    demo.load(render, outputs=dashboard)
 
 demo.launch()
