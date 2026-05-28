@@ -262,8 +262,8 @@ def refresh(tz_offset=0.0):
         return err, err, err, err, err, err
 
 
-# JS: detect browser timezone offset (e.g. Dubai = 4, NY = -4)
-TZ_JS = "() => -(new Date().getTimezoneOffset()) / 60"
+# JS: detect timezone and store in hidden input before render
+TZ_JS = "() => [-(new Date().getTimezoneOffset()) / 60]"
 
 # ── Layout ──────────────────────────────────────────────
 with gr.Blocks(css=SHELL_CSS, theme=gr.themes.Monochrome()) as demo:
@@ -285,13 +285,8 @@ with gr.Blocks(css=SHELL_CSS, theme=gr.themes.Monochrome()) as demo:
 
     outputs = [stats_html, pnl_html, perf_html, sigs_html, ing_html, sys_html]
 
-    # on load: detect tz → render
-    demo.load(fn=None, js=TZ_JS, outputs=[tz_box]).then(
-        fn=refresh, inputs=[tz_box], outputs=outputs
-    )
-    # on refresh: re-detect tz → render
-    btn.click(fn=None, js=TZ_JS, outputs=[tz_box]).then(
-        fn=refresh, inputs=[tz_box], outputs=outputs
-    )
+    # JS runs first to get TZ, result passed as input to refresh
+    demo.load(fn=refresh, inputs=[tz_box], outputs=outputs, js=TZ_JS)
+    btn.click(fn=refresh, inputs=[tz_box], outputs=outputs, js=TZ_JS)
 
 demo.launch()
