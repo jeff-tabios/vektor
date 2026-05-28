@@ -17,7 +17,8 @@ STATUS_ICON = {
 
 TABLE_CSS = """
 <style>
-.vk{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#e8e8e8}
+html,body{background:#111!important;color:#e8e8e8!important}
+.vk{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#e8e8e8;background:#111;padding-bottom:20px}
 .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:4px}
 .card{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:12px;padding:14px;min-width:0}
@@ -48,6 +49,7 @@ tr:hover td{background:#1a1a1a}
 """
 
 SHELL_CSS = """
+html,body,.gradio-container,.main,svelte-1kyws56{background:#111!important;color:#e8e8e8!important}
 .gradio-container{max-width:100%!important;padding:0!important;background:#111!important}
 .gr-button{margin:8px 16px!important;width:calc(100% - 32px)!important}
 footer{display:none!important}
