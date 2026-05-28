@@ -8,7 +8,7 @@ supabase = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
 
 SYMBOL_MAP = {
     "SPY": "SPY", "QQQ": "QQQ", "NVDA": "NVDA", "TSLA": "TSLA",
-    "AAPL": "AAPL", "AMD": "AMD", "BTC": "BTC-USD", "ETH": "ETH-USD",
+    "AAPL": "AAPL", "AMD": "AMD",
 }
 STATUS_ICON = {
     "stopped": "❌", "target": "✅", "winning": "📈",

@@ -23,8 +23,6 @@ load_dotenv()
 supabase = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
 
 ASSET_QUERIES = {
-    "BTC":  "Bitcoin price trend RSI MACD VIX market sentiment trading signals",
-    "ETH":  "Ethereum price trend RSI MACD market sentiment staking",
     "SPY":  "S&P 500 SPY price trend RSI MACD VIX Fed rates CPI unemployment macro",
     "QQQ":  "Nasdaq QQQ tech stocks price trend RSI MACD momentum volatility",
     "NVDA": "NVIDIA stock price trend RSI MACD earnings AI semiconductor",
