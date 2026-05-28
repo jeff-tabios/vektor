@@ -49,10 +49,31 @@ tr:hover td{background:#1a1a1a}
 """
 
 SHELL_CSS = """
-html,body,.gradio-container,.main,svelte-1kyws56{background:#111!important;color:#e8e8e8!important}
-.gradio-container{max-width:100%!important;padding:0!important;background:#111!important}
+*{color-scheme:dark!important}
+html,body{background:#111!important;color:#e8e8e8!important}
+.gradio-container,
+.gradio-container > .main,
+.gradio-container > .main > .wrap,
+.block,
+.prose,
+.html-container{background:#111!important;color:#e8e8e8!important}
+.gradio-container{max-width:100%!important;padding:0!important}
 .gr-button{margin:8px 16px!important;width:calc(100% - 32px)!important}
-footer{display:none!important}
+footer,#footer{display:none!important}
+"""
+
+FORCE_DARK_JS = """
+() => {
+  document.documentElement.style.setProperty('background','#111','important');
+  document.body.style.setProperty('background','#111','important');
+  document.body.style.setProperty('color','#e8e8e8','important');
+  document.querySelectorAll('.gradio-container,.block,.prose,.html-container,.main,.wrap')
+    .forEach(function(el){
+      el.style.setProperty('background','#111','important');
+      el.style.setProperty('color','#e8e8e8','important');
+    });
+  return -(new Date().getTimezoneOffset()) / 60;
+}
 """
 
 
@@ -345,9 +366,6 @@ def refresh(tz_offset=0.0):
         return err, err, err, err, err, err
 
 
-# JS: detect timezone and store in hidden input before render
-TZ_JS = "() => [-(new Date().getTimezoneOffset()) / 60]"
-
 # ── Layout ──────────────────────────────────────────────
 with gr.Blocks(css=SHELL_CSS, theme=gr.themes.Monochrome()) as demo:
 
@@ -368,8 +386,8 @@ with gr.Blocks(css=SHELL_CSS, theme=gr.themes.Monochrome()) as demo:
 
     outputs = [stats_html, pnl_html, perf_html, sigs_html, ing_html, sys_html]
 
-    # JS runs first to get TZ, result passed as input to refresh
-    demo.load(fn=refresh, inputs=[tz_box], outputs=outputs, js=TZ_JS)
-    btn.click(fn=refresh, inputs=[tz_box], outputs=outputs, js=TZ_JS)
+    # FORCE_DARK_JS forces dark bg AND returns tz offset as input to refresh
+    demo.load(fn=refresh, inputs=[tz_box], outputs=outputs, js=FORCE_DARK_JS)
+    btn.click(fn=refresh, inputs=[tz_box], outputs=outputs, js=FORCE_DARK_JS)
 
 demo.launch()
