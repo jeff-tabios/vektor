@@ -180,18 +180,16 @@ def build_stats():
     sell = sum(1 for t in all_trades if t["decision"] == "SELL")
     hold = sum(1 for t in all_trades if t["decision"] == "HOLD")
 
-    ri = "g" if avg_recall >= 0.9 else ("y" if avg_recall >= 0.7 else "r")
-    fi = "g" if avg_faith  >= 0.8 else ("y" if avg_faith  >= 0.6 else "r")
+    ri    = "g" if avg_recall >= 0.9 else ("y" if avg_recall >= 0.7 else "r")
+    fi    = "g" if avg_faith  >= 0.8 else ("y" if avg_faith  >= 0.6 else "r")
+    trust = (avg_recall + avg_faith) / 2
+    ti    = "g" if trust >= 0.85 else ("y" if trust >= 0.7 else "r")
 
     return TABLE_CSS + '<div class="vk"><div class="grid4">' + \
-        card("Recall@5",     '<span class="' + ri + '">' + "{:.1%}".format(avg_recall) + '</span>') + \
-        card("Faithfulness", '<span class="' + fi + '">' + "{:.1%}".format(avg_faith)  + '</span>') + \
-        card("Knowledge",    "{:,}<span class='small'>chunks</span>".format(total_chunks)) + \
-        card("Signals",
-             '<span class="buy">' + str(buy) + ' BUY</span>'
-             '<span class="m"> · </span>'
-             '<span class="sell">' + str(sell) + ' SELL</span>'
-             '<span class="m"> · ' + str(hold) + ' HOLD</span>') + \
+        card("Recall@5",        '<span class="' + ri + '">' + "{:.1%}".format(avg_recall) + '</span>') + \
+        card("Faithfulness",    '<span class="' + fi + '">' + "{:.1%}".format(avg_faith)  + '</span>') + \
+        card("Knowledge",       "{:,}<span class='small'>chunks</span>".format(total_chunks)) + \
+        card("Trustworthiness", '<span class="' + ti + '">' + "{:.1%}".format(trust) + '</span>') + \
         '</div></div>'
 
 
@@ -271,9 +269,15 @@ def build_performance(tz=0.0):
     hold = sum(1 for t in all_t if t["decision"] == "HOLD")
 
     trades = supabase.table("trades").select("*").neq("decision","HOLD").order("created_at",desc=True).limit(100).execute().data or []
+    sig_card = card("Signals",
+        '<span class="buy">' + str(buy) + ' BUY</span>'
+        '<span style="color:#555"> · </span>'
+        '<span class="sell">' + str(sell) + ' SELL</span>'
+        '<span style="color:#555"> · ' + str(hold) + ' HOLD</span>')
+
     if not trades:
         summary   = make_summary(avg_recall, avg_faith, 0, 0, 0, 0, buy, sell, hold)
-        pnl_cards = TABLE_CSS + '<div class="vk"><div class="grid3">' + card("Total P&L","—") + card("Win Rate","—") + card("Open Trades","0") + '</div>' + summary + '</div>'
+        pnl_cards = TABLE_CSS + '<div class="vk"><div class="grid4">' + sig_card + card("Total P&L","—") + card("Win Rate","—") + card("Open Trades","0") + '</div>' + summary + '</div>'
         return pnl_cards, TABLE_CSS + make_table(["Asset","Signal","Entry","Stop","Target","Now","P&L","Status","When"],[])
 
     prices = get_prices(list({t["asset"] for t in trades if t.get("asset")}))
@@ -309,7 +313,8 @@ def build_performance(tz=0.0):
 
     summary   = make_summary(avg_recall, avg_faith, total_pnl, win_rate, len(pnl_vals), open_count, buy, sell, hold)
     pnl_cards = (
-        TABLE_CSS + '<div class="vk"><div class="grid3">'
+        TABLE_CSS + '<div class="vk"><div class="grid4">'
+        + sig_card
         + card("Total P&L",   '<span class="' + pc + '">{:+.2f}%</span>'.format(total_pnl))
         + card("Win Rate",    "{:.0%} ({}/{})".format(win_rate, winners, len(pnl_vals)))
         + card("Open Trades", str(open_count))
