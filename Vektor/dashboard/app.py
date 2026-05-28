@@ -52,17 +52,16 @@ footer{display:none!important}
 
 # ── Helpers ─────────────────────────────────────────────
 
-UTC_OFFSET_HOURS = 4  # Dubai (UTC+4)
 
-def fmt_date(ts):
+def fmt_date(ts, tz_offset=4.0):
     if not ts:
         return "—"
     try:
         from datetime import timezone, timedelta
-        dt  = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-        dt  = dt.astimezone(timezone(timedelta(hours=UTC_OFFSET_HOURS)))
-        h   = dt.hour % 12 or 12
-        ap  = "am" if dt.hour < 12 else "pm"
+        dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        dt = dt.astimezone(timezone(timedelta(hours=tz_offset)))
+        h  = dt.hour % 12 or 12
+        ap = "am" if dt.hour < 12 else "pm"
         return "{} {}, {}:{} {}".format(dt.strftime("%b"), dt.day, h, dt.strftime("%M"), ap)
     except Exception:
         return ts[:10]
@@ -164,7 +163,7 @@ def build_stats():
         '</div></div>'
 
 
-def build_performance():
+def build_performance(tz=0.0):
     trades = supabase.table("trades").select("*").neq("decision","HOLD").order("created_at",desc=True).limit(100).execute().data or []
     if not trades:
         pnl_cards = TABLE_CSS + '<div class="vk"><div class="grid3">' + card("Total P&L","—") + card("Win Rate","—") + card("Open Trades","0") + '</div></div>'
@@ -193,7 +192,7 @@ def build_performance():
             ("${:,.2f}".format(cp)    if cp    else "—"),
             (pnl_s, pc),
             STATUS_ICON.get(status,"") + " " + status,
-            fmt_date(t.get("created_at")),
+            fmt_date(t.get("created_at"), tz),
         ])
 
     total_pnl = round(sum(pnl_vals), 2) if pnl_vals else 0
@@ -213,7 +212,7 @@ def build_performance():
     )
 
 
-def build_signals():
+def build_signals(tz=0.0):
     trades = supabase.table("trades").select("asset,decision,confidence,price_at_trade,stop_loss,take_profit,created_at").order("created_at",desc=True).limit(50).execute().data or []
     rows = []
     for t in trades:
@@ -227,18 +226,18 @@ def build_signals():
             ("${:,.2f}".format(entry) if entry else "—"),
             ("${:,.2f}".format(sl)    if sl    else "—"),
             ("${:,.2f}".format(tp)    if tp    else "—"),
-            fmt_date(t.get("created_at")),
+            fmt_date(t.get("created_at"), tz),
         ])
     return TABLE_CSS + make_table(["Asset","Signal","Conf","Entry","Stop","Target","When"], rows)
 
 
-def build_ingestion():
+def build_ingestion(tz=0.0):
     runs = supabase.table("ingestion_runs").select("chunks_added,recall_at_5,created_at").order("created_at",desc=True).limit(20).execute().data or []
     rows = []
     for r in runs:
         rc  = r.get("recall_at_5") or 0
         cls = "g" if rc >= 0.9 else ("y" if rc >= 0.7 else "r")
-        rows.append([str(r.get("chunks_added","—")), ("{:.1%}".format(rc), cls), fmt_date(r.get("created_at"))])
+        rows.append([str(r.get("chunks_added","—")), ("{:.1%}".format(rc), cls), fmt_date(r.get("created_at"), tz)])
     return TABLE_CSS + make_table(["Chunks Added","Recall@5","When"], rows)
 
 
@@ -248,12 +247,13 @@ def build_system():
     return TABLE_CSS + make_table(["Key","Value"], rows)
 
 
-def refresh():
+def refresh(tz_offset=0.0):
     try:
+        tz              = float(tz_offset) if tz_offset is not None else 0.0
         stats           = build_stats()
-        pnl_cards, perf = build_performance()
-        sigs            = build_signals()
-        ing             = build_ingestion()
+        pnl_cards, perf = build_performance(tz)
+        sigs            = build_signals(tz)
+        ing             = build_ingestion(tz)
         sys_            = build_system()
         return stats, pnl_cards, perf, sigs, ing, sys_
     except Exception as e:
@@ -262,9 +262,13 @@ def refresh():
         return err, err, err, err, err, err
 
 
+# JS: detect browser timezone offset (e.g. Dubai = 4, NY = -4)
+TZ_JS = "() => -(new Date().getTimezoneOffset()) / 60"
+
 # ── Layout ──────────────────────────────────────────────
 with gr.Blocks(css=SHELL_CSS, theme=gr.themes.Monochrome()) as demo:
 
+    tz_box     = gr.Number(value=0, visible=False)
     stats_html = gr.HTML()
     pnl_html   = gr.HTML()
     btn        = gr.Button("🔄 Refresh", variant="primary")
@@ -280,7 +284,14 @@ with gr.Blocks(css=SHELL_CSS, theme=gr.themes.Monochrome()) as demo:
             sys_html  = gr.HTML()
 
     outputs = [stats_html, pnl_html, perf_html, sigs_html, ing_html, sys_html]
-    btn.click(refresh, outputs=outputs)
-    demo.load(refresh, outputs=outputs)
+
+    # on load: detect tz → render
+    demo.load(fn=None, js=TZ_JS, outputs=[tz_box]).then(
+        fn=refresh, inputs=[tz_box], outputs=outputs
+    )
+    # on refresh: re-detect tz → render
+    btn.click(fn=None, js=TZ_JS, outputs=[tz_box]).then(
+        fn=refresh, inputs=[tz_box], outputs=outputs
+    )
 
 demo.launch()
