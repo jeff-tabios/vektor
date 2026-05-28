@@ -38,13 +38,14 @@ PERSONAS = ["taleb", "saliba"]
 
 def consensus(results: list) -> dict:
     decisions = [r["decision"] for r in results]
+    avg_faith = round(sum(r["faithfulness"] for r in results) / len(results), 3)
 
     if len(set(decisions)) == 1:
-        # all agree
+        # both agree
         return {
             "decision":    decisions[0],
             "confidence":  round(sum(r["confidence"] for r in results) / len(results), 3),
-            "faithfulness": round(sum(r["faithfulness"] for r in results) / len(results), 3),
+            "faithfulness": avg_faith,
             "reasoning":   " | ".join(
                 f"{p.upper()}: {r['reasoning']}"
                 for p, r in zip(PERSONAS, results)
@@ -53,17 +54,35 @@ def consensus(results: list) -> dict:
             "take_profit": results[0].get("take_profit"),
             "signal":      "strong" if decisions[0] != "HOLD" else "hold",
         }
-    else:
-        # conflict → HOLD
+
+    # one HOLD + one directional — lean toward action if confidence is high enough
+    directional = [r for r in results if r["decision"] != "HOLD"]
+    holds       = [r for r in results if r["decision"] == "HOLD"]
+
+    if directional and holds and directional[0]["confidence"] >= 0.65:
+        actor = directional[0]
+        idx   = results.index(actor)
+        persona_name = PERSONAS[idx].upper()
         return {
-            "decision":    "HOLD",
-            "confidence":  0.5,
-            "faithfulness": round(sum(r["faithfulness"] for r in results) / len(results), 3),
-            "reasoning":   f"Conflicting signals — Taleb: {decisions[0]}, Saliba: {decisions[1]}. Staying out.",
-            "stop_loss":   None,
-            "take_profit": None,
-            "signal":      "conflict",
+            "decision":    actor["decision"],
+            "confidence":  round(actor["confidence"] * 0.85, 3),  # slight haircut
+            "faithfulness": avg_faith,
+            "reasoning":   f"{persona_name}: {actor['reasoning']} (other persona held)",
+            "stop_loss":   actor.get("stop_loss"),
+            "take_profit": actor.get("take_profit"),
+            "signal":      "lean",
         }
+
+    # true conflict — opposite directions
+    return {
+        "decision":    "HOLD",
+        "confidence":  0.5,
+        "faithfulness": avg_faith,
+        "reasoning":   f"Conflicting signals — Taleb: {decisions[0]}, Saliba: {decisions[1]}. Staying out.",
+        "stop_loss":   None,
+        "take_profit": None,
+        "signal":      "conflict",
+    }
 
 
 def run(asset: str = "SPY", paper_trade: bool = True):
