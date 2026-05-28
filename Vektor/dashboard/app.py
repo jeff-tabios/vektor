@@ -20,10 +20,10 @@ TABLE_CSS = """
 *{color:#fff!important;box-sizing:border-box}
 html,body,.vk{background:#111!important}
 .vk{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding-bottom:4px}
-.section-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#555;margin-bottom:6px;margin-top:0}
-.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:20px}
-.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:20px}
-.row-block{margin-bottom:20px}
+.section-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#555;margin-bottom:6px;margin-top:20px}
+.vk>.section-title:first-child{margin-top:0}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:0}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:0}
 .card{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:12px;padding:14px;min-width:0}
 .card-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#666;margin-bottom:6px}
 .card-value{font-size:20px;font-weight:700;line-height:1.3;word-break:break-word}
@@ -39,7 +39,7 @@ tr:hover td{background:#1a1a1a}
 .empty{text-align:center;color:#666;padding:24px!important}
 .g{color:#22c55e}.y{color:#eab308}.r{color:#ef4444}.m{color:#888}
 .buy{color:#22c55e;font-weight:700}.sell{color:#ef4444;font-weight:700}
-.summary{margin:0;padding:16px;background:#111;border:1px solid #2a2a2a;border-radius:12px}
+.summary{margin:20px 0 0 0;padding:16px;background:#111;border:1px solid #2a2a2a;border-radius:12px}
 .summary-text{font-size:14px;color:#bbb;line-height:1.7}
 .summary-note{font-size:11px;color:#555;margin-top:8px}
 @media(max-width:580px){
