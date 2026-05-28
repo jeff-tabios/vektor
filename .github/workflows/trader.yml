@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        asset: [SPY, QQQ, BTC, ETH]
+        asset: [SPY, QQQ, NVDA, TSLA, AAPL, AMD]
 
     steps:
       - uses: actions/checkout@v4
