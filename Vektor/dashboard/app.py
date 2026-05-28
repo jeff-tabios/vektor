@@ -79,6 +79,16 @@ FORCE_DARK_JS = """
       el.style.setProperty('background','#111','important');
       el.style.setProperty('color','#e8e8e8','important');
     });
+
+  // auto-refresh every 5 minutes — set up once only
+  if (!window._vektorAutoRefresh) {
+    window._vektorAutoRefresh = true;
+    setInterval(function() {
+      var btn = document.querySelector('button.primary, button[variant="primary"]');
+      if (btn) btn.click();
+    }, 5 * 60 * 1000);
+  }
+
   return -(new Date().getTimezoneOffset()) / 60;
 }
 """
