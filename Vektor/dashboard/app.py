@@ -19,8 +19,8 @@ TABLE_CSS = """
 <style>
 *{color:#fff!important;box-sizing:border-box}
 html,body,.vk{background:#111!important}
-.vk{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding-bottom:20px}
-.section-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#555;margin-bottom:8px;margin-top:16px}
+.vk{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding-bottom:4px}
+.section-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#555;margin-bottom:8px;margin-top:4px}
 .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:4px}
 .card{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:12px;padding:14px;min-width:0}
@@ -63,6 +63,8 @@ html,body,
 }
 p,span,div,h1,h2,h3,h4,label,td,th,li{color:#fff!important}
 .gradio-container{max-width:100%!important;padding:0!important}
+.gradio-container .block{padding-top:0!important;padding-bottom:0!important;margin-top:0!important;margin-bottom:0!important}
+.gradio-container .wrap,.gradio-container .flex-col{gap:0!important}
 .gr-button{margin:8px 16px!important;width:calc(100% - 32px)!important}
 footer,#footer{display:none!important}
 """
