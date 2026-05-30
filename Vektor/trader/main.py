@@ -31,55 +31,80 @@ ASSET_QUERIES = {
     "AMD":  "AMD stock price trend RSI MACD earnings semiconductor",
 }
 
-PERSONAS = ["taleb", "saliba"]
+PERSONAS = ["taleb", "saliba", "druckenmiller"]
 
 
 def consensus(results: list) -> dict:
-    decisions = [r["decision"] for r in results]
-    avg_faith = round(sum(r["faithfulness"] for r in results) / len(results), 3)
+    decisions  = [r["decision"] for r in results]
+    avg_faith  = round(sum(r["faithfulness"] for r in results) / len(results), 3)
+    avg_conf   = round(sum(r["confidence"]   for r in results) / len(results), 3)
 
+    buys  = [r for r in results if r["decision"] == "BUY"]
+    sells = [r for r in results if r["decision"] == "SELL"]
+    holds = [r for r in results if r["decision"] == "HOLD"]
+
+    def _reasoning(group):
+        return " | ".join(
+            f"{PERSONAS[results.index(r)].upper()}: {r['reasoning']}"
+            for r in group
+        )
+
+    def _actor(group):
+        """Highest-confidence persona in the group — use their stops."""
+        return max(group, key=lambda r: r["confidence"])
+
+    # ── All 3 agree ──────────────────────────────────────────────────────────
     if len(set(decisions)) == 1:
-        # both agree
+        actor = _actor(results)
         return {
-            "decision":    decisions[0],
-            "confidence":  round(sum(r["confidence"] for r in results) / len(results), 3),
+            "decision":     decisions[0],
+            "confidence":   avg_conf,
             "faithfulness": avg_faith,
-            "reasoning":   " | ".join(
-                f"{p.upper()}: {r['reasoning']}"
-                for p, r in zip(PERSONAS, results)
-            ),
-            "stop_loss":   results[0].get("stop_loss"),
-            "take_profit": results[0].get("take_profit"),
-            "signal":      "strong" if decisions[0] != "HOLD" else "hold",
+            "reasoning":    _reasoning(results),
+            "stop_loss":    actor.get("stop_loss"),
+            "take_profit":  actor.get("take_profit"),
+            "signal":       "strong" if decisions[0] != "HOLD" else "hold",
         }
 
-    # one HOLD + one directional — lean toward action if confidence is high enough
-    directional = [r for r in results if r["decision"] != "HOLD"]
-    holds       = [r for r in results if r["decision"] == "HOLD"]
-
-    if directional and holds and directional[0]["confidence"] >= 0.65:
-        actor = directional[0]
-        idx   = results.index(actor)
-        persona_name = PERSONAS[idx].upper()
+    # ── Majority BUY (2+) ────────────────────────────────────────────────────
+    if len(buys) >= 2:
+        actor    = _actor(buys)
+        majority_conf = round(sum(r["confidence"] for r in buys) / len(buys), 3)
+        haircut  = 1.0 if len(buys) == 3 else 0.9
         return {
-            "decision":    actor["decision"],
-            "confidence":  round(actor["confidence"] * 0.85, 3),  # slight haircut
+            "decision":     "BUY",
+            "confidence":   round(majority_conf * haircut, 3),
             "faithfulness": avg_faith,
-            "reasoning":   f"{persona_name}: {actor['reasoning']} (other persona held)",
-            "stop_loss":   actor.get("stop_loss"),
-            "take_profit": actor.get("take_profit"),
-            "signal":      "lean",
+            "reasoning":    _reasoning(buys) + (f" | {PERSONAS[results.index(holds[0])].upper()}: held" if holds else ""),
+            "stop_loss":    actor.get("stop_loss"),
+            "take_profit":  actor.get("take_profit"),
+            "signal":       "strong" if len(buys) == 3 else "lean",
         }
 
-    # true conflict — opposite directions
+    # ── Majority SELL (2+) ───────────────────────────────────────────────────
+    if len(sells) >= 2:
+        actor    = _actor(sells)
+        majority_conf = round(sum(r["confidence"] for r in sells) / len(sells), 3)
+        haircut  = 1.0 if len(sells) == 3 else 0.9
+        return {
+            "decision":     "SELL",
+            "confidence":   round(majority_conf * haircut, 3),
+            "faithfulness": avg_faith,
+            "reasoning":    _reasoning(sells) + (f" | {PERSONAS[results.index(holds[0])].upper()}: held" if holds else ""),
+            "stop_loss":    actor.get("stop_loss"),
+            "take_profit":  actor.get("take_profit"),
+            "signal":       "strong" if len(sells) == 3 else "lean",
+        }
+
+    # ── 1 BUY + 1 SELL + 1 HOLD or other split — true conflict ──────────────
     return {
-        "decision":    "HOLD",
-        "confidence":  0.5,
+        "decision":     "HOLD",
+        "confidence":   avg_conf,
         "faithfulness": avg_faith,
-        "reasoning":   f"Conflicting signals — Taleb: {decisions[0]}, Saliba: {decisions[1]}. Staying out.",
-        "stop_loss":   None,
-        "take_profit": None,
-        "signal":      "conflict",
+        "reasoning":    f"Conflicting signals — {', '.join(f'{p.upper()}: {d}' for p, d in zip(PERSONAS, decisions))}. Staying out.",
+        "stop_loss":    None,
+        "take_profit":  None,
+        "signal":       "conflict",
     }
 
 
