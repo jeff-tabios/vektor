@@ -287,7 +287,10 @@ def build_performance(tz=0.0):
     sell = sum(1 for t in all_t if t["decision"] == "SELL")
     hold = sum(1 for t in all_t if t["decision"] == "HOLD")
 
-    trades = supabase.table("trades").select("*").neq("decision","HOLD").order("created_at",desc=True).limit(100).execute().data or []
+    # All trades for accurate stats, last 100 for the table
+    all_trades   = supabase.table("trades").select("*").neq("decision","HOLD").execute().data or []
+    table_trades = supabase.table("trades").select("*").neq("decision","HOLD").order("created_at",desc=True).limit(100).execute().data or []
+
     sig_card = card("Signals",
         '<span class="buy">' + str(buy) + ' BUY</span>'
         '<span style="color:#555"> · </span>'
@@ -311,7 +314,28 @@ def build_performance(tz=0.0):
             + '</div>'
         )
 
-    if not trades:
+    def resolve_trade(t, current_price):
+        """Use stored status/pnl for closed trades; recalculate live price for open ones."""
+        stored_status = t.get("status")
+        stored_pnl    = t.get("pnl")
+        entry = t.get("price_at_trade")
+        sl    = t.get("stop_loss")
+        tp    = t.get("take_profit")
+
+        if stored_status in ("target", "stopped") and stored_pnl is not None:
+            # Closed trade — trust the stored outcome
+            cp     = t.get("closed_price") or current_price
+            pnl    = stored_pnl
+            status = stored_status
+        else:
+            # Open trade — use live price
+            cp     = current_price
+            pnl    = calc_pnl(t["decision"], entry, cp)
+            status = get_status(t["decision"], entry, cp, sl, tp)
+
+        return cp, pnl, status
+
+    if not all_trades:
         summary   = make_summary(avg_recall, avg_faith, 0, 0, 0, 0, buy, sell, hold)
         pnl_cards = (
             TABLE_CSS + '<div class="vk">'
@@ -322,39 +346,46 @@ def build_performance(tz=0.0):
         )
         return pnl_cards, TABLE_CSS + make_table(["Asset","Signal","Entry","Stop","Target","Now","P&L","Status","When"],[])
 
-    prices = get_prices(list({t["asset"] for t in trades if t.get("asset")}))
-    rows, pnl_vals, open_count = [], [], 0
+    # Fetch live prices only for open trades
+    open_assets  = {t["asset"] for t in all_trades if t.get("status") not in ("target","stopped","hold")}
+    prices       = get_prices(list(open_assets)) if open_assets else {}
 
-    for t in trades:
-        cp     = prices.get(t["asset"])
-        entry  = t.get("price_at_trade")
-        sl     = t.get("stop_loss")
-        tp     = t.get("take_profit")
-        pnl    = calc_pnl(t["decision"], entry, cp)
-        status = get_status(t["decision"], entry, cp, sl, tp)
-        pnl_s  = "{:+.2f}%".format(pnl) if pnl is not None else "—"
-        pc     = "g" if (pnl or 0) > 0 else ("r" if (pnl or 0) < 0 else "")
-        sc     = "buy" if t["decision"] == "BUY" else "sell"
-        if pnl is not None: pnl_vals.append(pnl)
-        if status in ("winning","losing","open"): open_count += 1
-        rows.append([
-            t["asset"], (t["decision"], sc),
-            ("${:,.2f}".format(entry) if entry else "—"),
-            ("${:,.2f}".format(sl)    if sl    else "—"),
-            ("${:,.2f}".format(tp)    if tp    else "—"),
-            ("${:,.2f}".format(cp)    if cp    else "—"),
-            (pnl_s, pc),
-            STATUS_ICON.get(status,"") + " " + status,
-            fmt_date(t.get("created_at"), tz),
-        ])
+    # ── Stats from ALL trades ─────────────────────────────────────────────────
+    pnl_vals, open_count, closed_pnls = [], 0, []
+    for t in all_trades:
+        cp, pnl, status = resolve_trade(t, prices.get(t["asset"]))
+        if pnl is not None:
+            pnl_vals.append(pnl)
+        if status in ("winning", "losing", "open"):
+            open_count += 1
+        if t.get("status") in ("target", "stopped") and t.get("pnl") is not None:
+            closed_pnls.append(t["pnl"])
 
     total_pnl = round(sum(pnl_vals), 2) if pnl_vals else 0
     winners   = sum(1 for v in pnl_vals if v > 0)
     win_rate  = winners / len(pnl_vals) if pnl_vals else 0
     pc        = "g" if total_pnl > 0 else ("r" if total_pnl < 0 else "")
 
-    # closed trades use stored pnl field (set by closer.py)
-    closed_pnls = [t["pnl"] for t in trades if t.get("pnl") is not None]
+    # ── Table rows from last 100 ──────────────────────────────────────────────
+    rows = []
+    for t in table_trades:
+        entry  = t.get("price_at_trade")
+        sl     = t.get("stop_loss")
+        tp     = t.get("take_profit")
+        cp, pnl, status = resolve_trade(t, prices.get(t["asset"]))
+        pnl_s  = "{:+.2f}%".format(pnl) if pnl is not None else "—"
+        pnl_c  = "g" if (pnl or 0) > 0 else ("r" if (pnl or 0) < 0 else "")
+        sc     = "buy" if t["decision"] == "BUY" else "sell"
+        rows.append([
+            t["asset"], (t["decision"], sc),
+            ("${:,.2f}".format(entry) if entry else "—"),
+            ("${:,.2f}".format(sl)    if sl    else "—"),
+            ("${:,.2f}".format(tp)    if tp    else "—"),
+            ("${:,.2f}".format(cp)    if cp    else "—"),
+            (pnl_s, pnl_c),
+            STATUS_ICON.get(status, "") + " " + status,
+            fmt_date(t.get("created_at"), tz),
+        ])
 
     summary   = make_summary(avg_recall, avg_faith, total_pnl, win_rate, len(pnl_vals), open_count, buy, sell, hold)
     pnl_cards = (
