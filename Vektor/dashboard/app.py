@@ -182,31 +182,21 @@ def make_table(headers, rows):
 
 # ── Data fetching ────────────────────────────────────────
 
-def build_stats():
-    runs       = supabase.table("ingestion_runs").select("recall_at_5,chunks_added").execute().data or []
-    all_trades = supabase.table("trades").select("decision").execute().data or []
-    evals      = supabase.table("trade_evals").select("faithfulness").execute().data or []
-
-    avg_recall   = sum(r["recall_at_5"] for r in runs if r["recall_at_5"]) / len(runs) if runs else 0
-    avg_faith    = sum(e["faithfulness"] for e in evals if e["faithfulness"]) / len(evals) if evals else 0
-    total_chunks = sum(r["chunks_added"] for r in runs if r["chunks_added"]) if runs else 0
-    buy  = sum(1 for t in all_trades if t["decision"] == "BUY")
-    sell = sum(1 for t in all_trades if t["decision"] == "SELL")
-    hold = sum(1 for t in all_trades if t["decision"] == "HOLD")
-
+def _stats_html(avg_recall, avg_faith, total_chunks):
+    """Stats row HTML — no TABLE_CSS, no wrapper div (merged into build_top)."""
     ri    = "g" if avg_recall >= 0.9 else ("y" if avg_recall >= 0.7 else "r")
     fi    = "g" if avg_faith  >= 0.8 else ("y" if avg_faith  >= 0.6 else "r")
     trust = (avg_recall + avg_faith) / 2
     ti    = "g" if trust >= 0.85 else ("y" if trust >= 0.7 else "r")
-
-    return TABLE_CSS + '<div class="vk">' + \
-        '<div class="section-title">🧠 AI System Health</div>' + \
-        '<div class="grid4">' + \
-        card("Recall@5",        '<span class="' + ri + '">' + "{:.1%}".format(avg_recall) + '</span>') + \
-        card("Faithfulness",    '<span class="' + fi + '">' + "{:.1%}".format(avg_faith)  + '</span>') + \
-        card("Knowledge",       "{:,}<span class='small'>chunks</span>".format(total_chunks)) + \
-        card("Trustworthiness", '<span class="' + ti + '">' + "{:.1%}".format(trust) + '</span>') + \
-        '</div></div>'
+    return (
+        '<div class="section-title">🧠 AI System Health</div>'
+        '<div class="grid4">'
+        + card("Recall@5",        '<span class="' + ri + '">' + "{:.1%}".format(avg_recall) + '</span>')
+        + card("Faithfulness",    '<span class="' + fi + '">' + "{:.1%}".format(avg_faith)  + '</span>')
+        + card("Knowledge",       "{:,}<span class='small'>chunks</span>".format(total_chunks))
+        + card("Trustworthiness", '<span class="' + ti + '">' + "{:.1%}".format(trust) + '</span>')
+        + '</div>'
+    )
 
 
 def make_summary(avg_recall, avg_faith, total_pnl, win_rate, n, open_count, buy, sell, hold):
@@ -273,16 +263,17 @@ def make_summary(avg_recall, avg_faith, total_pnl, win_rate, n, open_count, buy,
     )
 
 
-def build_performance(tz=0.0):
-    # fetch system stats + config
-    runs   = supabase.table("ingestion_runs").select("recall_at_5").execute().data or []
+def build_top(tz=0.0):
+    """All three stat rows in one HTML block — no separate Gradio components."""
+    # shared data fetches (single pass)
+    runs   = supabase.table("ingestion_runs").select("recall_at_5,chunks_added").execute().data or []
     evals  = supabase.table("trade_evals").select("faithfulness").execute().data or []
     all_t  = supabase.table("trades").select("decision").execute().data or []
     config = {r["key"]: r["value"] for r in (supabase.table("system_config").select("key,value").execute().data or [])}
-    trade_size = float(config.get("paper_trade_size", 1000))
-
-    avg_recall = sum(r["recall_at_5"] for r in runs if r["recall_at_5"]) / len(runs) if runs else 0
-    avg_faith  = sum(e["faithfulness"] for e in evals if e["faithfulness"]) / len(evals) if evals else 0
+    trade_size   = float(config.get("paper_trade_size", 1000))
+    avg_recall   = sum(r["recall_at_5"] for r in runs if r["recall_at_5"]) / len(runs) if runs else 0
+    avg_faith    = sum(e["faithfulness"] for e in evals if e["faithfulness"]) / len(evals) if evals else 0
+    total_chunks = sum(r["chunks_added"] for r in runs if r["chunks_added"]) if runs else 0
     buy  = sum(1 for t in all_t if t["decision"] == "BUY")
     sell = sum(1 for t in all_t if t["decision"] == "SELL")
     hold = sum(1 for t in all_t if t["decision"] == "HOLD")
@@ -305,7 +296,7 @@ def build_performance(tz=0.0):
         nc = "g" if net_dollar > 0 else ("r" if net_dollar < 0 else "")
         ac = "g" if avg_dollar > 0 else ("r" if avg_dollar < 0 else "")
         return (
-            '<div class="section-title" style="margin-top:36px">💵 Simulated Dollar Returns</div>'
+            '<div class="section-title">💵 Simulated Dollar Returns</div>'
             '<div class="grid4" style="margin-bottom:40px">'
             + card("Capital / Trade", "${:,.0f}".format(trade_size))
             + card("Total Deployed",  "${:,.0f}".format(deployed) if n else "—")
@@ -336,15 +327,16 @@ def build_performance(tz=0.0):
         return cp, pnl, status
 
     if not all_trades:
-        summary   = make_summary(avg_recall, avg_faith, 0, 0, 0, 0, buy, sell, hold)
-        pnl_cards = (
+        summary  = make_summary(avg_recall, avg_faith, 0, 0, 0, 0, buy, sell, hold)
+        top_html = (
             TABLE_CSS + '<div class="vk">'
-            '<div class="section-title">📊 Trading Performance</div>'
-            '<div class="grid4">' + sig_card + card("Total P&L","—") + card("Win Rate","—") + card("Open Trades","0") + '</div>'
+            + _stats_html(avg_recall, avg_faith, total_chunks)
+            + '<div class="section-title">📊 Trading Performance</div>'
+            + '<div class="grid4">' + sig_card + card("Total P&L","—") + card("Win Rate","—") + card("Open Trades","0") + '</div>'
             + dollar_row(trade_size, [])
             + summary + '</div>'
         )
-        return pnl_cards, TABLE_CSS + make_table(["Asset","Signal","Entry","Stop","Target","Now","P&L","Status","When"],[])
+        return top_html, TABLE_CSS + make_table(["Asset","Signal","Entry","Stop","Target","Now","P&L","Status","When"],[])
 
     # Fetch live prices only for open trades
     open_assets  = {t["asset"] for t in all_trades if t.get("status") not in ("target","stopped","hold")}
@@ -387,11 +379,12 @@ def build_performance(tz=0.0):
             fmt_date(t.get("created_at"), tz),
         ])
 
-    summary   = make_summary(avg_recall, avg_faith, total_pnl, win_rate, len(pnl_vals), open_count, buy, sell, hold)
-    pnl_cards = (
+    summary  = make_summary(avg_recall, avg_faith, total_pnl, win_rate, len(pnl_vals), open_count, buy, sell, hold)
+    top_html = (
         TABLE_CSS + '<div class="vk">'
-        '<div class="section-title">📊 Trading Performance</div>'
-        '<div class="grid4">'
+        + _stats_html(avg_recall, avg_faith, total_chunks)
+        + '<div class="section-title">📊 Trading Performance</div>'
+        + '<div class="grid4">'
         + sig_card
         + card("Total P&L",   '<span class="' + pc + '">{:+.2f}%</span>'.format(total_pnl))
         + card("Win Rate",    "{:.0%} ({}/{})".format(win_rate, winners, len(pnl_vals)))
@@ -400,7 +393,7 @@ def build_performance(tz=0.0):
         + dollar_row(trade_size, closed_pnls)
         + summary + '</div>'
     )
-    return pnl_cards, TABLE_CSS + make_table(
+    return top_html, TABLE_CSS + make_table(
         ["Asset","Signal","Entry","Stop","Target","Now","P&L","Status","When"], rows
     )
 
@@ -442,26 +435,24 @@ def build_system():
 
 def refresh(tz_offset=0.0):
     try:
-        tz              = float(tz_offset) if tz_offset is not None else 0.0
-        stats           = build_stats()
-        pnl_cards, perf = build_performance(tz)
-        sigs            = build_signals(tz)
-        ing             = build_ingestion(tz)
-        sys_            = build_system()
-        return stats, pnl_cards, perf, sigs, ing, sys_
+        tz          = float(tz_offset) if tz_offset is not None else 0.0
+        top, perf   = build_top(tz)
+        sigs        = build_signals(tz)
+        ing         = build_ingestion(tz)
+        sys_        = build_system()
+        return top, perf, sigs, ing, sys_
     except Exception as e:
         import traceback
         err = "<pre style='color:red;padding:20px'>" + traceback.format_exc() + "</pre>"
-        return err, err, err, err, err, err
+        return err, err, err, err, err
 
 
 # ── Layout ──────────────────────────────────────────────
 with gr.Blocks(css=SHELL_CSS, theme=gr.themes.Monochrome(), js="() => { document.documentElement.classList.add('dark'); }") as demo:
 
-    tz_box     = gr.Number(value=0, visible=False)
-    stats_html = gr.HTML()
-    pnl_html   = gr.HTML()
-    btn        = gr.Button("🔄 Refresh", variant="primary")
+    tz_box   = gr.Number(value=0, visible=False)
+    top_html = gr.HTML()
+    btn      = gr.Button("🔄 Refresh", variant="primary")
 
     with gr.Tabs():
         with gr.Tab("📈 Performance"):
@@ -473,7 +464,7 @@ with gr.Blocks(css=SHELL_CSS, theme=gr.themes.Monochrome(), js="() => { document
         with gr.Tab("⚙️ System"):
             sys_html  = gr.HTML()
 
-    outputs = [stats_html, pnl_html, perf_html, sigs_html, ing_html, sys_html]
+    outputs = [top_html, perf_html, sigs_html, ing_html, sys_html]
 
     # FORCE_DARK_JS forces dark bg AND returns tz offset as input to refresh
     demo.load(fn=refresh, inputs=[tz_box], outputs=outputs, js=FORCE_DARK_JS)
