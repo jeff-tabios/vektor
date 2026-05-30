@@ -41,6 +41,6 @@ jobs:
       - name: Deploy dashboard to HF Spaces
         run: |
           pip install huggingface_hub
-          huggingface-cli login --token $HF_TOKEN
+          hf auth login --token $HF_TOKEN
           cd Vektor/dashboard
           hf upload jefftabios/vektor . --repo-type space
