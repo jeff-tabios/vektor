@@ -2,7 +2,8 @@ name: Ingestion
 
 on:
   schedule:
-    - cron: '0 */4 * * *'
+    - cron: '0 */4 * * *'   # every 4h for fresh knowledge
+    - cron: '0 14 * * 1-5'  # dedicated market open run — also triggers trader
   workflow_dispatch:
 
 env:
