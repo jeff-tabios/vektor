@@ -44,3 +44,16 @@ jobs:
           hf auth login --token $HF_TOKEN
           cd Vektor/dashboard
           hf upload jefftabios/vektor . --repo-type space
+
+      - name: Trigger trader at market open (14:00-15:00 UTC weekdays)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          HOUR=$(date -u +%H)
+          WEEKDAY=$(date -u +%u)
+          if [ "$WEEKDAY" -le "5" ] && [ "$HOUR" -eq "14" ]; then
+            echo "Market hours — triggering trader..."
+            gh workflow run trader.yml --repo jeff-tabios/vektor
+          else
+            echo "Outside market hours (weekday=$WEEKDAY, hour=$HOUR UTC) — skipping trader"
+          fi
