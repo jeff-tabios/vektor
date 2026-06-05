@@ -1,0 +1,30 @@
+name: Closer
+
+on:
+  schedule:
+    - cron: '*/15 14-21 * * 1-5'  # every 15 min, 14:00–21:00 UTC (covers full US market hours)
+  workflow_dispatch:
+
+env:
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+
+jobs:
+  close:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: Vektor/trader/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r Vektor/trader/requirements.txt
+
+      - name: Run IBKR-style closer
+        working-directory: Vektor/trader
+        run: python closer.py
