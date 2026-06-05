@@ -4,7 +4,7 @@ from groq import Groq
 from prompt import build_prompt, parse_response
 
 _client = None
-MODEL = "llama-3.1-8b-instant"
+MODEL    = "llama-3.3-70b-versatile"   # better instruction following → higher faithfulness
 MAX_RETRIES = 3
 
 FAITHFULNESS_PROMPT = """Rate how well this trading decision is grounded in the provided context.
@@ -31,7 +31,7 @@ def get_client() -> Groq:
 
 
 def _score_faithfulness(decision: str, reasoning: str, chunks: list) -> float:
-    context = "\n".join(c["text"][:300] for c in chunks)
+    context = "\n".join(c["text"][:500] for c in chunks)
     prompt = FAITHFULNESS_PROMPT.format(
         context=context, decision=decision, reasoning=reasoning
     )
@@ -61,8 +61,7 @@ def execute(query: str, chunks: list, persona: str, supabase) -> dict:
     result = None
 
     for attempt in range(MAX_RETRIES):
-        strict = attempt > 0
-        prompt = build_prompt(persona, query, chunks, strict=strict)
+        prompt = build_prompt(persona, query, chunks, strict=True)  # always strict
 
         try:
             resp = get_client().chat.completions.create(

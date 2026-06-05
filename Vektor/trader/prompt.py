@@ -73,11 +73,10 @@ REASONING: [2-3 sentences citing specific facts from the context above]"""
 def build_prompt(persona: str, asset: str, chunks: list, strict: bool = False) -> str:
     p = PERSONAS.get(persona, PERSONAS["taleb"])
     context = "\n\n".join(f"[{c.get('source', '')}] {c['text']}" for c in chunks)
-    template = _STRICT_TEMPLATE if strict else _TEMPLATE
-    return template.format(
+    return _STRICT_TEMPLATE.format(
         persona_style=p["style"],
         asset=asset,
-        context=context[:4000],
+        context=context[:6000],
     )
 
 
