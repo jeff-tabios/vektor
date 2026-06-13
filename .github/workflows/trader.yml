@@ -1,10 +1,6 @@
 name: Trader
 
 on:
-  schedule:
-    - cron: '30 14 * * 1-5'  # primary
-    - cron: '35 14 * * 1-5'  # backup 1
-    - cron: '40 14 * * 1-5'  # backup 2
   workflow_dispatch:
 
 env:
