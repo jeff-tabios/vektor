@@ -76,7 +76,7 @@ def build_prompt(persona: str, asset: str, chunks: list, strict: bool = False) -
     return _STRICT_TEMPLATE.format(
         persona_style=p["style"],
         asset=asset,
-        context=context[:6000],
+        context=context[:8000],
     )
 
 

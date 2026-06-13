@@ -3,14 +3,12 @@ import yfinance as yf
 import pandas as pd
 
 ASSETS = {
-    "SPY":     "general",
-    "QQQ":     "general",
-    "NVDA":    "general",
-    "TSLA":    "general",
-    "AAPL":    "general",
-    "AMD":     "general",
-    "BTC-USD": "BTC",
-    "ETH-USD": "ETH",
+    "SPY":  "SPY",
+    "QQQ":  "QQQ",
+    "NVDA": "NVDA",
+    "TSLA": "TSLA",
+    "AAPL": "AAPL",
+    "AMD":  "AMD",
 }
 
 

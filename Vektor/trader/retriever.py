@@ -35,8 +35,8 @@ def retrieve(query: str, supabase, asset: str = "general") -> tuple:
     Returns (chunks, retrieval_ms).
     """
     config      = _get_config(supabase)
-    retrieval_k = int(config.get("retrieval_k", 20))
-    rerank_k    = int(config.get("rerank_k", 5))
+    retrieval_k = int(config.get("retrieval_k", 30))   # fetch more candidates
+    rerank_k    = int(config.get("rerank_k", 8))        # pass 8 chunks to LLM (more signal)
 
     t0      = time.time()
     chunks  = []

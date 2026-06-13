@@ -24,24 +24,29 @@ load_dotenv()
 supabase = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
 
 RSS_FEEDS = [
-    # Crypto
-    ("CoinDesk",      "https://www.coindesk.com/arc/outboundfeeds/rss/",              "general"),
-    ("Cointelegraph", "https://cointelegraph.com/rss",                                "general"),
-    ("Decrypt",       "https://decrypt.co/feed",                                      "general"),
-    ("BitcoinMag",    "https://bitcoinmagazine.com/feed",                             "BTC"),
-    ("TheBlock",      "https://www.theblock.co/rss.xml",                              "general"),
-    ("CryptoSlate",   "https://cryptoslate.com/feed/",                                "general"),
-    ("NewsBTC",       "https://www.newsbtc.com/feed/",                                "BTC"),
-    ("Bitcoinist",    "https://bitcoinist.com/feed/",                                 "BTC"),
-    ("BeInCrypto",    "https://beincrypto.com/feed/",                                 "general"),
-    ("AMBCrypto",     "https://ambcrypto.com/feed/",                                  "general"),
-    ("CryptoNews",    "https://cryptonews.com/news/feed/",                            "general"),
-    ("UToday",        "https://u.today/rss",                                          "general"),
-    # Stocks / Macro
+    # ── Macro / broad market ─────────────────────────────────────────────────
     ("Reuters",       "https://feeds.reuters.com/reuters/businessNews",               "general"),
     ("CNBC",          "https://www.cnbc.com/id/100003114/device/rss/rss.html",        "general"),
     ("MarketWatch",   "https://feeds.content.dowjones.io/public/rss/mw_marketpulse", "general"),
     ("Investopedia",  "https://www.investopedia.com/feedbuilder/feed/getfeed/?feedName=rss_headline", "general"),
+    ("WSJ-Markets",   "https://feeds.a.dj.com/rss/RSSMarketsMain.xml",               "general"),
+    ("Bloomberg",     "https://feeds.bloomberg.com/markets/news.rss",                 "general"),
+    ("FT",            "https://www.ft.com/rss/home/us",                               "general"),
+    ("SeekingAlpha",  "https://seekingalpha.com/market_currents.xml",                 "general"),
+    # ── Per-stock: Yahoo Finance RSS ─────────────────────────────────────────
+    ("YF-SPY",        "https://finance.yahoo.com/rss/headline?s=SPY",                 "SPY"),
+    ("YF-QQQ",        "https://finance.yahoo.com/rss/headline?s=QQQ",                 "QQQ"),
+    ("YF-NVDA",       "https://finance.yahoo.com/rss/headline?s=NVDA",                "NVDA"),
+    ("YF-TSLA",       "https://finance.yahoo.com/rss/headline?s=TSLA",                "TSLA"),
+    ("YF-AAPL",       "https://finance.yahoo.com/rss/headline?s=AAPL",                "AAPL"),
+    ("YF-AMD",        "https://finance.yahoo.com/rss/headline?s=AMD",                 "AMD"),
+    # ── Per-stock: Benzinga ──────────────────────────────────────────────────
+    ("BZ-NVDA",       "https://www.benzinga.com/stock/nvda/feed",                     "NVDA"),
+    ("BZ-TSLA",       "https://www.benzinga.com/stock/tsla/feed",                     "TSLA"),
+    ("BZ-AAPL",       "https://www.benzinga.com/stock/aapl/feed",                     "AAPL"),
+    ("BZ-AMD",        "https://www.benzinga.com/stock/amd/feed",                      "AMD"),
+    # ── Sector / ETF ─────────────────────────────────────────────────────────
+    ("YF-Tech",       "https://finance.yahoo.com/rss/industry?ind=semiconductors",    "general"),
 ]
 
 ALL_TABLES = ["chunks", "eval_questions", "ingestion_runs", "trades", "trade_evals", "healing_log"]
