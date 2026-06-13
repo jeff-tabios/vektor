@@ -32,24 +32,6 @@ PERSONAS = {
     },
 }
 
-_TEMPLATE = """{persona_style}
-
-You are analyzing {asset} using ONLY the following recent news and market context:
-
----
-{context}
----
-
-Based SOLELY on the information above, make a trading decision.
-Use the current price from the market data above to set your stop loss and take profit levels.
-
-Respond in this exact format:
-DECISION: [BUY/SELL/HOLD]
-CONFIDENCE: [0.0-1.0]
-STOP_LOSS: [price level to exit if wrong. For HOLD use N/A]
-TAKE_PROFIT: [price level to lock in gains. For HOLD use N/A]
-REASONING: [2-3 sentences citing specific facts from the context above]"""
-
 _STRICT_TEMPLATE = """{persona_style}
 
 You are analyzing {asset}. You MUST base every single claim on the context below.
@@ -69,14 +51,54 @@ STOP_LOSS: [price level to exit if wrong. For HOLD use N/A]
 TAKE_PROFIT: [price level to lock in gains. For HOLD use N/A]
 REASONING: [2-3 sentences citing specific facts from the context above]"""
 
+_REVISION_TEMPLATE = """{persona_style}
 
-def build_prompt(persona: str, asset: str, chunks: list, strict: bool = False) -> str:
-    p = PERSONAS.get(persona, PERSONAS["taleb"])
+You are analyzing {asset}. You MUST base every single claim on the context below.
+Do NOT use any external knowledge. If context is insufficient, respond HOLD.
+
+Context:
+---
+{context}
+---
+
+Your previous reasoning was flagged as not well-grounded in this context:
+"{previous_reasoning}"
+
+Revise your decision. Only state claims that are explicitly present in the context above, or are
+direct, clearly-labeled inferences from data in the context (e.g. citing an indicator's value
+before interpreting it). If you cannot ground a claim, drop it or respond HOLD.
+
+Use the current price from the market data above to set stop loss and take profit levels.
+
+Respond in this exact format:
+DECISION: [BUY/SELL/HOLD]
+CONFIDENCE: [0.0-1.0]
+STOP_LOSS: [price level to exit if wrong. For HOLD use N/A]
+TAKE_PROFIT: [price level to lock in gains. For HOLD use N/A]
+REASONING: [2-3 sentences citing specific facts from the context above]"""
+
+CONTEXT_CHAR_LIMIT = 8000
+
+
+def build_context(chunks: list) -> str:
     context = "\n\n".join(f"[{c.get('source', '')}] {c['text']}" for c in chunks)
+    return context[:CONTEXT_CHAR_LIMIT]
+
+
+def build_prompt(persona: str, asset: str, chunks: list, previous_reasoning: str = None) -> str:
+    p = PERSONAS.get(persona, PERSONAS["taleb"])
+    context = build_context(chunks)
+    if previous_reasoning:
+        return _REVISION_TEMPLATE.format(
+            persona_style=p["style"],
+            asset=asset,
+            context=context,
+            previous_reasoning=previous_reasoning,
+        )
     return _STRICT_TEMPLATE.format(
         persona_style=p["style"],
         asset=asset,
-        context=context[:8000],
+        context=context,
     )
 
 
