@@ -1,13 +1,13 @@
 import os
 import time
 from groq import Groq
-from prompt import build_prompt, parse_response
+from prompt import build_context, build_prompt, parse_response
 
 _client = None
 MODEL    = "llama-3.3-70b-versatile"   # better instruction following → higher faithfulness
 MAX_RETRIES = 3
 
-FAITHFULNESS_PROMPT = """Rate how well this trading decision is grounded in the provided context.
+FAITHFULNESS_PROMPT = """You are auditing a trading decision for how well its reasoning is grounded in the provided context.
 
 Context:
 {context}
@@ -15,10 +15,19 @@ Context:
 Decision: {decision}
 Reasoning: {reasoning}
 
-Score 0.0 to 1.0:
-1.0 = Every claim in the reasoning is directly from the context
-0.5 = Some claims supported, some are external knowledge
-0.0 = Reasoning ignores or contradicts the context
+"Grounded" means each claim either:
+- states a fact, figure, or event that appears in the context, or
+- is a direct, reasonable interpretation of data in the context (e.g. "RSI of 78 suggests overbought"
+  is grounded if that RSI value is in the context).
+
+"Not grounded" means the reasoning relies on specific facts, numbers, or events that do not appear
+anywhere in the context and cannot be inferred from it.
+
+Score the reasoning from 0.0 to 1.0:
+0.9-1.0 = every claim is stated in or directly inferable from the context
+0.7-0.8 = mostly grounded, at most one minor unsupported or generic statement
+0.4-0.6 = a mix of grounded and ungrounded claims
+0.0-0.3 = largely unrelated to or contradicts the context
 
 Reply with ONLY a single number between 0.0 and 1.0."""
 
@@ -31,7 +40,7 @@ def get_client() -> Groq:
 
 
 def _score_faithfulness(decision: str, reasoning: str, chunks: list) -> float:
-    context = "\n".join(c["text"][:500] for c in chunks)
+    context = build_context(chunks)
     prompt = FAITHFULNESS_PROMPT.format(
         context=context, decision=decision, reasoning=reasoning
     )
@@ -50,8 +59,9 @@ def _score_faithfulness(decision: str, reasoning: str, chunks: list) -> float:
 def execute(query: str, chunks: list, persona: str, supabase) -> dict:
     """
     Makes a trading decision with a faithfulness quality gate.
-    Retries up to MAX_RETRIES with increasingly strict prompts.
-    Falls back to HOLD if faithfulness never meets the threshold.
+    Retries up to MAX_RETRIES, feeding back the prior reasoning so the model
+    can revise ungrounded claims. Falls back to HOLD if faithfulness never
+    meets the threshold.
     """
     config = supabase.table("system_config").select("key,value").execute().data or []
     config = {r["key"]: r["value"] for r in config}
@@ -61,7 +71,8 @@ def execute(query: str, chunks: list, persona: str, supabase) -> dict:
     result = None
 
     for attempt in range(MAX_RETRIES):
-        prompt = build_prompt(persona, query, chunks, strict=True)  # always strict
+        previous_reasoning = result["reasoning"] if attempt > 0 and result else None
+        prompt = build_prompt(persona, query, chunks, previous_reasoning=previous_reasoning)
 
         try:
             resp = get_client().chat.completions.create(
